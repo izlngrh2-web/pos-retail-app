@@ -138,7 +138,8 @@
       const [newStoreModal, setNewStoreModal] = React.useState({ isOpen: false, url: '' });
 
       const [showAddProduct, setShowAddProduct] = React.useState(false);
-      const [newProduct, setNewProduct] = React.useState({ name: '', purchase_price: '', selling_price: '', stock: '', master_id: '', yield_per_master: 1 });
+      // PERBAIKAN 1: Tambahkan branch_id 'ALL' secara default
+      const [newProduct, setNewProduct] = React.useState({ name: '', purchase_price: '', selling_price: '', stock: '', master_id: '', yield_per_master: 1, branch_id: 'ALL' });
       const [showAddTransaction, setShowAddTransaction] = React.useState(false);
       const [newTrx, setNewTrx] = React.useState({ type: 'SALE', product_id: '', qty: 1, admin_fee: 0 });
       const [showAddExpense, setShowAddExpense] = React.useState(false);
@@ -338,7 +339,11 @@
       const activeBranchId = isOwner ? (dashboardBranchFilter === 'ALL' ? null : dashboardBranchFilter) : currentUser?.branch_id;
       const dataViewBranchId = isOwner ? null : currentUser?.branch_id;
       
-      const filteredProducts = isOwner ? products : products.filter(p => p.branch_id === dataViewBranchId);
+      // PERBAIKAN 2: Kasir sekarang bisa melihat produk berstatus 'ALL' atau yang secara default 'b1' atau miliknya
+      const filteredProducts = isOwner 
+        ? products 
+        : products.filter(p => p.branch_id === dataViewBranchId || p.branch_id === 'ALL' || p.branch_id === 'b1' || !p.branch_id);
+        
       const viewTransactions = (isOwner ? transactions : transactions.filter(t => t.branch_id === dataViewBranchId)).filter(t => t.status === 'COMPLETED');
       const viewExpenses = isOwner ? expenses : expenses.filter(e => e.branch_id === dataViewBranchId);
 
@@ -419,7 +424,8 @@
         e.preventDefault();
         const newItem = { 
           id: 'PRD-' + Date.now().toString().slice(-6), 
-          branch_id: currentUser.branch_id || 'b1', 
+          // PERBAIKAN 3: Simpan nilai branch_id sesuai dropdown form
+          branch_id: isOwner ? (newProduct.branch_id || 'ALL') : (currentUser.branch_id || 'b1'), 
           name: newProduct.name, 
           purchase_price: Number(newProduct.purchase_price), 
           selling_price: Number(newProduct.selling_price), 
@@ -428,7 +434,7 @@
           yield_per_master: Number(newProduct.yield_per_master) || 1
         };
         setProducts([newItem, ...products]); setShowAddProduct(false);
-        setNewProduct({ name: '', purchase_price: '', selling_price: '', stock: '', master_id: '', yield_per_master: 1 });
+        setNewProduct({ name: '', purchase_price: '', selling_price: '', stock: '', master_id: '', yield_per_master: 1, branch_id: 'ALL' });
         showToast('Menyimpan produk...');
         try { 
           await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'add_product', product: newItem })) }); 
@@ -479,7 +485,7 @@
         const baseAmt = newTrx.type === 'SALE' ? (prod.selling_price * qty) : (prod.purchase_price * qty);
         const fee = newTrx.type === 'SALE' ? Number(newTrx.admin_fee || 0) : 0;
         const totalAmt = baseAmt + fee;
-        const trx = { id: 'TRX-' + Date.now().toString().slice(-6), branch_id: prod.branch_id, user_id: currentUser.id, type: newTrx.type, total_amount: totalAmt, admin_fee: fee, status: 'COMPLETED', created_at: new Date().toISOString(), items: [{ product_id: prod.id, qty: qty, unit_price: prod.selling_price, unit_cost: prod.purchase_price, product_name: prod.name }] };
+        const trx = { id: 'TRX-' + Date.now().toString().slice(-6), branch_id: prod.branch_id === 'ALL' ? (currentUser.branch_id || 'b1') : prod.branch_id, user_id: currentUser.id, type: newTrx.type, total_amount: totalAmt, admin_fee: fee, status: 'COMPLETED', created_at: new Date().toISOString(), items: [{ product_id: prod.id, qty: qty, unit_price: prod.selling_price, unit_cost: prod.purchase_price, product_name: prod.name }] };
 
         let targetId = prod.id;
         let consumedQty = qty;
@@ -1033,12 +1039,16 @@
                                 <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center"><i className="ph-fill ph-barcode text-lg"></i></div>
                                 <div className="flex items-center space-x-1.5">
                                   <span className="px-2 py-1 text-[10px] font-extrabold rounded-md uppercase tracking-wider bg-emerald-500/10 text-emerald-400">Stok: {calculatedStock}</span>
-                                  <button type="button" onClick={() => setEditingProduct(p)} className="w-7 h-7 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg flex items-center justify-center hover:bg-slate-200 cursor-pointer" title="Edit"><i className="ph-bold ph-pencil text-xs"></i></button>
-                                  <button type="button" onClick={() => triggerDeleteProduct(p.id)} className="w-7 h-7 bg-rose-500/10 text-rose-500 rounded-lg flex items-center justify-center hover:bg-rose-500/20 cursor-pointer" title="Hapus"><i className="ph-bold ph-trash text-xs"></i></button>
+                                  {isOwner && (
+                                    <>
+                                      <button type="button" onClick={() => setEditingProduct(p)} className="w-7 h-7 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg flex items-center justify-center hover:bg-slate-200 cursor-pointer" title="Edit"><i className="ph-bold ph-pencil text-xs"></i></button>
+                                      <button type="button" onClick={() => triggerDeleteProduct(p.id)} className="w-7 h-7 bg-rose-500/10 text-rose-500 rounded-lg flex items-center justify-center hover:bg-rose-500/20 cursor-pointer" title="Hapus"><i className="ph-bold ph-trash text-xs"></i></button>
+                                    </>
+                                  )}
                                 </div>
                               </div>
                               <h3 className="font-bold text-slate-900 dark:text-white mb-1 truncate text-sm">{p.name}</h3>
-                              <p className="text-[10px] text-slate-400 font-mono mb-2">ID: {p.id}</p>
+                              <p className="text-[10px] text-slate-400 font-mono mb-2">ID: {p.id} {p.branch_id === 'ALL' && <span className="ml-1 bg-purple-100 text-purple-600 dark:bg-purple-900/30 px-1 py-0.5 rounded">Global</span>}</p>
                               {masterProduct && (
                                 <p className="text-[10px] bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 p-1.5 rounded-lg mb-3 font-medium">Varian dari: <b>{masterProduct.name}</b> (Yield: {p.yield_per_master}x)</p>
                               )}
@@ -1310,6 +1320,17 @@
                 <form onSubmit={submitProduct} className="space-y-3.5">
                   <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Nama Produk</label><input type="text" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newProduct.name} onChange={(e)=>setNewProduct({...newProduct, name: e.target.value})} /></div>
                   
+                  {/* PERBAIKAN 4: Tambah Pilihan Cabang di Form Produk */}
+                  {isOwner && (
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Tersedia di Cabang</label>
+                      <select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold cursor-pointer" value={newProduct.branch_id} onChange={(e)=>setNewProduct({...newProduct, branch_id: e.target.value})}>
+                        <option value="ALL">Semua Cabang (Global)</option>
+                        {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                      </select>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Produk Master (Opsional untuk Varian)</label>
                     <select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold cursor-pointer" value={newProduct.master_id} onChange={(e)=>setNewProduct({...newProduct, master_id: e.target.value})}>
@@ -1342,6 +1363,17 @@
                 <form onSubmit={submitEditProduct} className="space-y-3.5">
                   <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Nama</label><input type="text" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingProduct.name} onChange={(e)=>setEditingProduct({...editingProduct, name: e.target.value})} /></div>
                   
+                  {/* PERBAIKAN 5: Tambah Pilihan Cabang di Form Edit Produk */}
+                  {isOwner && (
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Tersedia di Cabang</label>
+                      <select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold cursor-pointer" value={editingProduct.branch_id || 'ALL'} onChange={(e)=>setEditingProduct({...editingProduct, branch_id: e.target.value})}>
+                        <option value="ALL">Semua Cabang (Global)</option>
+                        {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                      </select>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Produk Master</label>
                     <select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold cursor-pointer" value={editingProduct.master_id || ''} onChange={(e)=>setEditingProduct({...editingProduct, master_id: e.target.value || null})}>
