@@ -97,8 +97,9 @@
         return saved ? JSON.parse(saved) : null;
       });
       const [themeMode, setThemeMode] = React.useState(() => localStorage.getItem('pos_theme_mode') || 'dark');
-      const [authView, setAuthView] = React.useState('login'); // 'login' | 'register'
+      const [authView, setAuthView] = React.useState('login');
       const [isLoading, setIsLoading] = React.useState(false);
+      const [isExporting, setIsExporting] = React.useState(false);
       
       const [branches, setBranches] = React.useState([]);
       const [users, setUsers] = React.useState([]);
@@ -109,13 +110,12 @@
         ];
       });
 
-      const [authForm, setAuthForm] = React.useState({ name: '', email: '', password: '', role: 'OWNER', branch_id: '', store_name: '', spreadsheet_id: '', oldPassword: '', newPassword: '' });
+      const [authForm, setAuthForm] = React.useState({ name: '', email: '', password: '', role: 'OWNER', branch_id: '', store_name: '', spreadsheet_id: '' });
       const [profileForm, setProfileForm] = React.useState({ name: currentUser?.name || '', oldPassword: '', newPassword: '', avatar: currentUser?.avatar || '', spreadsheet_id: currentUser?.spreadsheet_id || '', avatarChanged: false });
       const avatarInputRef = React.useRef(null);
 
       const [currentView, setCurrentView] = React.useState('dashboard');
       const [toast, setToast] = React.useState(null);
-      const [isRefreshing, setIsRefreshing] = React.useState(false);
 
       const currentDate = new Date();
       const [dashboardFilterMode, setDashboardFilterMode] = React.useState('monthly');
@@ -236,10 +236,8 @@
       };
 
       const handleRefreshCatalog = async () => {
-        setIsRefreshing(true);
         showToast('Menyinkronkan data dengan Google Sheets...', 'info');
         await loadDataFromServer();
-        setIsRefreshing(false);
         showToast('Data berhasil diperbarui!');
       };
 
@@ -394,25 +392,6 @@
         return { total_sales, cogs, admin_fee, total_operational_expenses, total_purchases, net_profit, order_count, avg_order, topProducts, maxProdSales, recentTrx };
       }, [filteredTransactionsForDash, filteredExpensesForDash]);
 
-      const dailyChartData = React.useMemo(() => {
-        const daysMap = {};
-        let maxDays = 31;
-        if (dashboardFilterMode === 'monthly') {
-          maxDays = new Date(selectedYear, Number(selectedMonth) + 1, 0).getDate();
-          for (let d = 1; d <= maxDays; d++) daysMap[d] = { label: d, revenue: 0 };
-        } else {
-          const ms = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
-          for (let m = 0; m < 12; m++) daysMap[m + 1] = { label: ms[m], revenue: 0 };
-        }
-
-        filteredTransactionsForDash.filter(t => t.type === 'SALE').forEach(t => {
-          const d = new Date(t.created_at);
-          const key = dashboardFilterMode === 'monthly' ? d.getDate() : d.getMonth() + 1;
-          if (daysMap[key]) daysMap[key].revenue += t.total_amount;
-        });
-        return Object.values(daysMap);
-      }, [filteredTransactionsForDash, dashboardFilterMode, selectedMonth, selectedYear]);
-
       const submitProduct = async (e) => {
         e.preventDefault();
         const newItem = { 
@@ -430,7 +409,7 @@
         showToast('Menyimpan produk...');
         try { 
           await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'add_product', product: newItem })) }); 
-          loadDataFromServer();
+          await loadDataFromServer();
         } catch (err) {}
       };
 
@@ -450,7 +429,7 @@
         showToast('Memperbarui produk...');
         try { 
           await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'update_product', product: updatedItem })) }); 
-          loadDataFromServer();
+          await loadDataFromServer();
         } catch(e) {}
       };
 
@@ -459,7 +438,7 @@
           setProducts(products.filter(p => p.id !== id));
           try { 
             await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'delete_product', productId: id })) }); 
-            loadDataFromServer();
+            await loadDataFromServer();
             showToast('Dihapus.'); 
           } catch(e) {}
         }});
@@ -492,7 +471,7 @@
         
         try { 
           await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'add_transaction', transaction: trx })) });
-          loadDataFromServer();
+          await loadDataFromServer();
         } catch(err) {
           showToast('Gagal menyinkronkan transaksi ke server.', 'error');
         }
@@ -506,7 +485,7 @@
         showToast('Biaya operasional dicatat.');
         try {
           await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'add_expense', expense: exp })) });
-          loadDataFromServer();
+          await loadDataFromServer();
         } catch(e) {}
       };
 
@@ -518,7 +497,7 @@
         showToast('Cabang ditambahkan.');
         try {
           await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'add_branch', branch: b })) });
-          loadDataFromServer();
+          await loadDataFromServer();
         } catch(e) {}
       };
 
@@ -527,7 +506,7 @@
           setBranches(branches.filter(b => b.id !== id));
           try {
             await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'delete_branch', branchId: id })) });
-            loadDataFromServer();
+            await loadDataFromServer();
             showToast('Cabang dihapus.');
           } catch(e) {}
         }});
@@ -544,7 +523,7 @@
             setShowAddUser(false);
             setNewUserForm({ name: '', email: '', password: '', role: 'CASHIER', branch_id: '' });
             showToast('Karyawan berhasil ditambahkan!');
-            loadDataFromServer();
+            await loadDataFromServer();
           } else {
             showToast(result.message, 'error');
           }
@@ -556,7 +535,7 @@
           setUsers(users.filter(u => u.id !== id));
           try {
             await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'delete_user', userId: id })) });
-            loadDataFromServer();
+            await loadDataFromServer();
             showToast('Karyawan dihapus.');
           } catch(e) {}
         }});
@@ -567,7 +546,7 @@
           if (!reason) return;
 
           if (isOwner) {
-            executeCancellation(trx.id, reason);
+            await executeCancellation(trx.id, reason);
           } else {
             const updatedTrxList = transactions.map(t => t.id === trx.id ? { ...t, status: 'PENDING_CANCEL', cancel_reason: reason, requested_by: currentUser.name } : t);
             setTransactions(updatedTrxList);
@@ -621,14 +600,14 @@
 
         try {
           await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'cancel_transaction', trxId: trxId, reason: reason })) });
-          loadDataFromServer();
+          await loadDataFromServer();
         } catch (err) {
           showToast('Gagal menyinkronkan pembatalan ke server.', 'error');
         }
       };
 
-      const handleApproveCancel = (notif) => {
-        executeCancellation(notif.trx_id, notif.reason);
+      const handleApproveCancel = async (notif) => {
+        await executeCancellation(notif.trx_id, notif.reason);
         setNotifications(notifications.map(n => n.id === notif.id ? { ...n, is_read: true, handled: true } : n));
       };
 
@@ -676,7 +655,7 @@
           const result = await res.json();
           if (result.status === 'success') {
             showToast(result.message);
-            loadDataFromServer();
+            await loadDataFromServer();
           } else {
             showToast(result.message, 'error');
           }
@@ -704,11 +683,11 @@
               {authView === 'login' ? (
                 <form onSubmit={(e) => handleAuthSubmit(e, 'login')} className="space-y-4">
                   <div>
-                    <label className="block text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-widest mb-1.5">Email</label>
+                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-widest mb-1.5">Email</label>
                     <input type="email" required className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-blue-600 outline-none text-xs font-bold" value={authForm.email} onChange={(e) => setAuthForm({...authForm, email: e.target.value})} placeholder="owner@toko.com" />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-widest mb-1.5">Kata Sandi</label>
+                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-widest mb-1.5">Kata Sandi</label>
                     <input type="password" required className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-blue-600 outline-none text-xs font-bold" value={authForm.password} onChange={(e) => setAuthForm({...authForm, password: e.target.value})} placeholder="••••••••" />
                   </div>
                   <button type="submit" disabled={isLoading} className="w-full py-3.5 px-4 rounded-xl text-white font-extrabold text-xs bg-blue-600 hover:bg-blue-700 transition shadow-lg shadow-blue-500/25 disabled:opacity-70 cursor-pointer">
@@ -720,22 +699,22 @@
                 </form>
               ) : (
                 <form onSubmit={(e) => handleAuthSubmit(e, 'register')} className="space-y-3.5">
-                  <div><label className="block text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-widest mb-1">Nama Lengkap</label><input type="text" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs font-bold" value={authForm.name} onChange={(e) => setAuthForm({...authForm, name: e.target.value})} placeholder="Budi Owner" /></div>
-                  <div><label className="block text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-widest mb-1">Email</label><input type="email" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs font-bold" value={authForm.email} onChange={(e) => setAuthForm({...authForm, email: e.target.value})} placeholder="email@toko.com" /></div>
-                  <div><label className="block text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-widest mb-1">Kata Sandi</label><input type="password" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs font-bold" value={authForm.password} onChange={(e) => setAuthForm({...authForm, password: e.target.value})} placeholder="Minimal 6 karakter" /></div>
+                  <div><label className="block text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-widest mb-1">Nama Lengkap</label><input type="text" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs font-bold" value={authForm.name} onChange={(e) => setAuthForm({...authForm, name: e.target.value})} placeholder="Budi Owner" /></div>
+                  <div><label className="block text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-widest mb-1">Email</label><input type="email" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs font-bold" value={authForm.email} onChange={(e) => setAuthForm({...authForm, email: e.target.value})} placeholder="email@toko.com" /></div>
+                  <div><label className="block text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-widest mb-1">Kata Sandi</label><input type="password" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs font-bold" value={authForm.password} onChange={(e) => setAuthForm({...authForm, password: e.target.value})} placeholder="Minimal 6 karakter" /></div>
                   
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-widest mb-1">Peran</label>
+                      <label className="block text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-widest mb-1">Peran</label>
                       <select className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs font-bold cursor-pointer" value={authForm.role} onChange={(e) => setAuthForm({...authForm, role: e.target.value})}>
                         <option value="OWNER">Owner</option>
                         <option value="CASHIER">Kasir</option>
                       </select>
                     </div>
                     {authForm.role === 'OWNER' ? (
-                      <div><label className="block text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-widest mb-1">Nama Toko</label><input type="text" required className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs font-bold" value={authForm.store_name} onChange={(e) => setAuthForm({...authForm, store_name: e.target.value})} placeholder="Toko Saya" /></div>
+                      <div><label className="block text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-widest mb-1">Nama Toko</label><input type="text" required className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs font-bold" value={authForm.store_name} onChange={(e) => setAuthForm({...authForm, store_name: e.target.value})} placeholder="Toko Saya" /></div>
                     ) : (
-                      <div><label className="block text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-widest mb-1">ID Cabang</label><input type="text" required className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs font-bold" value={authForm.branch_id} onChange={(e) => setAuthForm({...authForm, branch_id: e.target.value})} placeholder="b1" /></div>
+                      <div><label className="block text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-widest mb-1">ID Cabang</label><input type="text" required className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs font-bold" value={authForm.branch_id} onChange={(e) => setAuthForm({...authForm, branch_id: e.target.value})} placeholder="b1" /></div>
                     )}
                   </div>
 
@@ -1193,24 +1172,6 @@
                     <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Biaya Admin (Rp)</label><input type="number" min="0" placeholder="0" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newTrx.admin_fee} onChange={(e)=>setNewTrx({...newTrx, admin_fee: e.target.value})} /></div>
                   )}
                   <button type="submit" className="w-full mt-3 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-md hover:bg-blue-700 transition cursor-pointer">Simpan Transaksi</button>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {/* EDIT TRANSACTION MODAL */}
-          {editingTrx && (
-            <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999]">
-              <div className="bg-white dark:bg-[#121824] p-6 rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800">
-                <div className="flex justify-between items-center mb-5"><h3 className="text-lg font-extrabold text-slate-900 dark:text-white">Edit Transaksi</h3><button onClick={() => setEditingTrx(null)} className="w-7 h-7 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-full cursor-pointer"><i className="ph-bold ph-x text-xs"></i></button></div>
-                <form onSubmit={submitEditTransaction} className="space-y-3.5">
-                  <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Tipe</label><select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingTrx.type} onChange={(e)=>setEditingTrx({...editingTrx, type: e.target.value})}><option value="SALE">Penjualan</option><option value="PURCHASE">Pembelian Stok</option></select></div>
-                  <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Produk</label><select required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingTrx.product_id} onChange={(e)=>setEditingTrx({...editingTrx, product_id: e.target.value})}><option value="">Pilih...</option>{filteredProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
-                  <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Qty</label><input type="number" min="1" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingTrx.qty} onChange={(e)=>setEditingTrx({...editingTrx, qty: e.target.value})} /></div>
-                  {editingTrx.type === 'SALE' && (
-                    <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Biaya Admin (Rp)</label><input type="number" min="0" placeholder="0" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingTrx.admin_fee} onChange={(e)=>setEditingTrx({...editingTrx, admin_fee: e.target.value})} /></div>
-                  )}
-                  <button type="submit" className="w-full mt-3 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-md hover:bg-blue-700 transition cursor-pointer">Simpan Perubahan</button>
                 </form>
               </div>
             </div>
