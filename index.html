@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>POS Retail Pro - Modern Minimalist</title>
+  <title>Pro Finance - Modern Financial & POS</title>
   
   <meta name="theme-color" content="#0f172a">
   <link rel="manifest" href="./manifest.json">
@@ -55,7 +55,7 @@
       #printable-receipt, #printable-pdf-report {
         position: absolute; left: 0; top: 0; width: 100%; max-width: 100%;
         box-shadow: none !important; border: none !important; padding: 20px !important; margin: 0 !important;
-        background: white !important;
+        background: white !important; color: black !important;
       }
     }
   </style>
@@ -82,7 +82,6 @@
 
   <script type="text/babel">
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxrA-dYXQnCgsEYPHdDgEpVGYqvo9K_HnmzNGHr5TH6F9bTwxMpf5r4LDPJVvmUixE/exec';
-    const EXCLUSIVE_TARGET_SS_ID = '1FC9vn_RcGhETXJRLWDkKk1-QkT50oAg7zQ9rY5lF_NE';
 
     function timeAgo(dateString) {
       const seconds = Math.floor((new Date() - new Date(dateString)) / 1000);
@@ -106,11 +105,17 @@
         return saved ? JSON.parse(saved) : null;
       });
       const [themeMode, setThemeMode] = React.useState(() => localStorage.getItem('pos_theme_mode') || 'dark');
-      const [authView, setAuthView] = React.useState('login'); 
+      const [authView, setAuthView] = React.useState('login'); // 'login' | 'register'
       const [isLoading, setIsLoading] = React.useState(false);
       
       const [branches, setBranches] = React.useState([]);
       const [users, setUsers] = React.useState([]);
+      const [notifications, setNotifications] = React.useState(() => {
+        const saved = localStorage.getItem('pos_notifications');
+        return saved ? JSON.parse(saved) : [
+          { id: 'n1', title: 'Sistem Aktif', message: 'Selamat datang di Pro Finance Enterprise.', created_at: new Date().toISOString(), is_read: false, type: 'INFO' }
+        ];
+      });
 
       const [authForm, setAuthForm] = React.useState({ name: '', email: '', password: '', role: 'OWNER', branch_id: '', store_name: '', spreadsheet_id: '', oldPassword: '', newPassword: '' });
       const [profileForm, setProfileForm] = React.useState({ name: currentUser?.name || '', oldPassword: '', newPassword: '', avatar: currentUser?.avatar || '', spreadsheet_id: currentUser?.spreadsheet_id || '', avatarChanged: false });
@@ -140,9 +145,8 @@
       const [appDialog, setAppDialog] = React.useState({ isOpen: false, type: 'confirm', title: '', message: '', promptValue: '', onConfirm: null });
       const [newStoreModal, setNewStoreModal] = React.useState({ isOpen: false, url: '' });
 
-      // Modals
       const [showAddProduct, setShowAddProduct] = React.useState(false);
-      const [newProduct, setNewProduct] = React.useState({ name: '', purchase_price: '', selling_price: '', stock: '', is_variant: false, master_id: '', yield_per_master: '' });
+      const [newProduct, setNewProduct] = React.useState({ name: '', purchase_price: '', selling_price: '', stock: '', master_id: '', yield_per_master: 1 });
       const [showAddTransaction, setShowAddTransaction] = React.useState(false);
       const [newTrx, setNewTrx] = React.useState({ type: 'SALE', product_id: '', qty: 1, admin_fee: 0 });
       const [showAddExpense, setShowAddExpense] = React.useState(false);
@@ -152,7 +156,15 @@
       const [showAddUser, setShowAddUser] = React.useState(false);
       const [newUserForm, setNewUserForm] = React.useState({ name: '', email: '', password: '', role: 'CASHIER', branch_id: '' });
 
-      // Sync theme
+      const getAvailableStock = (product, allProducts) => {
+        if (product.master_id) {
+          const master = allProducts.find(p => p.id === product.master_id);
+          if (master) return Math.floor(master.stock * (product.yield_per_master || 1));
+          return 0;
+        }
+        return Math.round(product.stock * 100) / 100;
+      };
+
       React.useEffect(() => {
         const rootHtml = document.documentElement;
         if (themeMode === 'dark') {
@@ -163,14 +175,9 @@
         localStorage.setItem('pos_theme_mode', themeMode);
       }, [themeMode]);
 
-      const getAvailableStock = (product, allProducts) => {
-        if (product.master_id) {
-          const master = allProducts.find(p => p.id === product.master_id);
-          if (master) return Math.floor(master.stock * (product.yield_per_master || 1));
-          return 0; 
-        }
-        return Math.round(product.stock * 100) / 100;
-      };
+      React.useEffect(() => {
+        localStorage.setItem('pos_notifications', JSON.stringify(notifications));
+      }, [notifications]);
 
       const getPayloadWithAuth = (basePayload) => {
         return {
@@ -243,24 +250,6 @@
         await loadDataFromServer();
         setIsRefreshing(false);
         showToast('Data berhasil diperbarui!');
-      };
-
-      const handleImportExternalCatalog = async () => {
-        setIsRefreshing(true);
-        showToast('Mengimpor katalog dari Spreadsheet eksternal...', 'info');
-        try {
-          const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'import_external_catalog' })) });
-          const json = await res.json();
-          if (json.status === 'success') {
-            showToast(json.message);
-            await loadDataFromServer();
-          } else {
-            showToast(json.message || 'Gagal mengimpor.', 'error');
-          }
-        } catch(e) {
-          showToast('Koneksi server gagal.', 'error');
-        }
-        setIsRefreshing(false);
       };
 
       const handleAuthSubmit = async (e, actionType) => {
@@ -350,7 +339,7 @@
           if (result.status === 'success') {
             setCurrentUser(result.data);
             setProfileForm(prev => ({ ...prev, oldPassword: '', newPassword: '', avatarChanged: false }));
-            showToast('Profil & Tema berhasil diperbarui!');
+            showToast('Profil & Password berhasil diperbarui!');
           } else { showToast(result.message, 'error'); }
         } catch (error) { showToast('Koneksi server gagal.', 'error'); } finally { setIsLoading(false); }
       };
@@ -360,11 +349,12 @@
       const dataViewBranchId = isOwner ? null : currentUser?.branch_id;
       
       const filteredProducts = isOwner ? products : products.filter(p => p.branch_id === dataViewBranchId);
-      const viewTransactions = isOwner ? transactions : transactions.filter(t => t.branch_id === dataViewBranchId);
+      const viewTransactions = (isOwner ? transactions : transactions.filter(t => t.branch_id === dataViewBranchId)).filter(t => t.status === 'COMPLETED');
       const viewExpenses = isOwner ? expenses : expenses.filter(e => e.branch_id === dataViewBranchId);
 
       const filteredTransactionsForDash = React.useMemo(() => {
         return transactions.filter(t => {
+          if (t.status !== 'COMPLETED') return false;
           if (activeBranchId && t.branch_id !== activeBranchId) return false;
           const d = new Date(t.created_at);
           const matchYear = d.getFullYear() === Number(selectedYear);
@@ -390,8 +380,8 @@
         const targetPrevMonth = isYearly ? null : (selectedMonth === 0 ? 11 : selectedMonth - 1);
 
         transactions.forEach(t => {
-            if (activeBranchId && t.branch_id !== activeBranchId) return;
             if (t.status !== 'COMPLETED') return;
+            if (activeBranchId && t.branch_id !== activeBranchId) return;
             const d = new Date(t.created_at);
             const mYear = d.getFullYear() === targetPrevYear;
             const mMonth = isYearly || d.getMonth() === targetPrevMonth;
@@ -423,7 +413,7 @@
         let total_sales = 0, cogs = 0, admin_fee = 0, total_purchases = 0, order_count = 0;
         const topSalesMap = {};
 
-        filteredTransactionsForDash.filter(t => t.status === 'COMPLETED').forEach(t => {
+        filteredTransactionsForDash.forEach(t => {
             if (t.type === 'SALE') {
                 total_sales += t.total_amount;
                 admin_fee += (Number(t.admin_fee) || 0);
@@ -472,7 +462,7 @@
           for (let m = 0; m < 12; m++) daysMap[m + 1] = { label: ms[m], revenue: 0 };
         }
 
-        filteredTransactionsForDash.filter(t => t.status === 'COMPLETED' && t.type === 'SALE').forEach(t => {
+        filteredTransactionsForDash.filter(t => t.type === 'SALE').forEach(t => {
           const d = new Date(t.created_at);
           const key = dashboardFilterMode === 'monthly' ? d.getDate() : d.getMonth() + 1;
           if (daysMap[key]) daysMap[key].revenue += t.total_amount;
@@ -486,13 +476,20 @@
         return m * 1.15; 
       }, [dailyChartData]);
 
-      // Product Actions
       const submitProduct = async (e) => {
         e.preventDefault();
-        if (newProduct.is_variant && !newProduct.master_id) return showToast('Pilih Master Produk!', 'error');
-        const newItem = { id: 'PRD-' + Date.now().toString().slice(-6), branch_id: currentUser.branch_id || 'b1', name: newProduct.name, purchase_price: Number(newProduct.purchase_price), selling_price: Number(newProduct.selling_price), stock: newProduct.is_variant ? 0 : Number(newProduct.stock), master_id: newProduct.is_variant ? newProduct.master_id : null, yield_per_master: newProduct.is_variant ? Number(newProduct.yield_per_master) : 1 };
+        const newItem = { 
+          id: 'PRD-' + Date.now().toString().slice(-6), 
+          branch_id: currentUser.branch_id || 'b1', 
+          name: newProduct.name, 
+          purchase_price: Number(newProduct.purchase_price), 
+          selling_price: Number(newProduct.selling_price), 
+          stock: newProduct.master_id ? 0 : Number(newProduct.stock),
+          master_id: newProduct.master_id || null,
+          yield_per_master: Number(newProduct.yield_per_master) || 1
+        };
         setProducts([newItem, ...products]); setShowAddProduct(false);
-        setNewProduct({ name: '', purchase_price: '', selling_price: '', stock: '', is_variant: false, master_id: '', yield_per_master: '' });
+        setNewProduct({ name: '', purchase_price: '', selling_price: '', stock: '', master_id: '', yield_per_master: 1 });
         showToast('Menyimpan produk...');
         try { await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'add_product', product: newItem })) }); } catch (err) {}
       };
@@ -500,7 +497,14 @@
       const submitEditProduct = async (e) => {
         e.preventDefault();
         if (!editingProduct) return;
-        const updatedItem = { ...editingProduct, purchase_price: Number(editingProduct.purchase_price), selling_price: Number(editingProduct.selling_price), stock: Number(editingProduct.stock) };
+        const updatedItem = { 
+          ...editingProduct, 
+          purchase_price: Number(editingProduct.purchase_price), 
+          selling_price: Number(editingProduct.selling_price), 
+          stock: editingProduct.master_id ? 0 : Number(editingProduct.stock),
+          master_id: editingProduct.master_id || null,
+          yield_per_master: Number(editingProduct.yield_per_master) || 1
+        };
         setProducts(products.map(p => p.id === updatedItem.id ? updatedItem : p));
         setEditingProduct(null);
         showToast('Memperbarui produk...');
@@ -514,21 +518,30 @@
         }});
       };
 
-      // Transaction Actions
       const submitTransaction = async (e) => {
         e.preventDefault();
         const prod = products.find(p => p.id === newTrx.product_id);
         if (!prod) return showToast('Pilih produk!', 'error');
         const qty = Number(newTrx.qty);
-        const avail = getAvailableStock(prod, products);
-        if (newTrx.type === 'SALE' && avail < qty) return showToast('Stok tidak mencukupi!', 'error');
+        
+        const currentAvailable = getAvailableStock(prod, products);
+        if (newTrx.type === 'SALE' && currentAvailable < qty) return showToast('Stok tidak mencukupi!', 'error');
 
-        const totalAmt = newTrx.type === 'SALE' ? (prod.selling_price * qty) : (prod.purchase_price * qty);
+        const baseAmt = newTrx.type === 'SALE' ? (prod.selling_price * qty) : (prod.purchase_price * qty);
         const fee = newTrx.type === 'SALE' ? Number(newTrx.admin_fee || 0) : 0;
+        const totalAmt = baseAmt + fee;
         const trx = { id: 'TRX-' + Date.now().toString().slice(-6), branch_id: prod.branch_id, user_id: currentUser.id, type: newTrx.type, total_amount: totalAmt, admin_fee: fee, status: 'COMPLETED', created_at: new Date().toISOString(), items: [{ product_id: prod.id, qty: qty, unit_price: prod.selling_price, unit_cost: prod.purchase_price, product_name: prod.name }] };
 
-        setProducts(products.map(p => p.id === prod.id ? { ...p, stock: p.stock + (newTrx.type === 'SALE' ? -qty : qty) } : p));
-        setTransactions([trx, ...transactions]); setShowAddTransaction(false); showToast('Transaksi dicatat...');
+        let targetId = prod.id;
+        let consumedQty = qty;
+        if (prod.master_id) {
+          targetId = prod.master_id;
+          consumedQty = qty / (prod.yield_per_master || 1);
+        }
+        const stockDelta = newTrx.type === 'PURCHASE' ? consumedQty : -consumedQty;
+
+        setProducts(products.map(p => p.id === targetId ? { ...p, stock: Math.round((p.stock + stockDelta) * 100) / 100 } : p));
+        setTransactions([trx, ...transactions]); setShowAddTransaction(false); showToast('Transaksi berhasil dicatat & stok diperbarui!');
         try { await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'add_transaction', transaction: trx })) }); } catch(err) {}
       };
 
@@ -538,25 +551,116 @@
         const prod = products.find(p => p.id === editingTrx.product_id);
         if (!prod) return showToast('Pilih produk!', 'error');
         const qty = Number(editingTrx.qty);
-        const totalAmt = editingTrx.type === 'SALE' ? (prod.selling_price * qty) : (prod.purchase_price * qty);
+        const baseAmt = editingTrx.type === 'SALE' ? (prod.selling_price * qty) : (prod.purchase_price * qty);
         const fee = editingTrx.type === 'SALE' ? Number(editingTrx.admin_fee || 0) : 0;
+        const totalAmt = baseAmt + fee;
         const oldTrx = transactions.find(t => t.id === editingTrx.id); if (!oldTrx) return;
-        const updatedTrx = { ...oldTrx, type: editingTrx.type, total_amount: totalAmt, admin_fee: fee, items: [{ product_id: prod.id, qty: qty, unit_price: prod.selling_price, unit_cost: prod.purchase_price, product_name: prod.name }] };
 
+        const oldItem = oldTrx.items[0];
+        const oldProd = products.find(p => p.id === oldItem?.product_id);
+        if (oldProd && oldItem) {
+          let oldTargetId = oldProd.id;
+          let oldConsumed = oldItem.qty;
+          if (oldProd.master_id) {
+            oldTargetId = oldProd.master_id;
+            oldConsumed = oldItem.qty / (oldProd.yield_per_master || 1);
+          }
+          const oldRevertDelta = oldTrx.type === 'PURCHASE' ? -oldConsumed : oldConsumed;
+          
+          let newTargetId = prod.id;
+          let newConsumed = qty;
+          if (prod.master_id) {
+            newTargetId = prod.master_id;
+            newConsumed = qty / (prod.yield_per_master || 1);
+          }
+          const newApplyDelta = editingTrx.type === 'PURCHASE' ? newConsumed : -newConsumed;
+
+          setProducts(products.map(p => {
+            if (p.id === oldTargetId && p.id === newTargetId) {
+              return { ...p, stock: Math.round((p.stock + oldRevertDelta + newApplyDelta) * 100) / 100 };
+            }
+            if (p.id === oldTargetId) {
+              return { ...p, stock: Math.round((p.stock + oldRevertDelta) * 100) / 100 };
+            }
+            if (p.id === newTargetId) {
+              return { ...p, stock: Math.round((p.stock + newApplyDelta) * 100) / 100 };
+            }
+            return p;
+          }));
+        }
+
+        const updatedTrx = { ...oldTrx, type: editingTrx.type, total_amount: totalAmt, admin_fee: fee, items: [{ product_id: prod.id, qty: qty, unit_price: prod.selling_price, unit_cost: prod.purchase_price, product_name: prod.name }] };
         setTransactions(transactions.map(t => t.id === updatedTrx.id ? updatedTrx : t)); setEditingTrx(null); showToast('Transaksi diperbarui!');
         try { await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'update_transaction', transaction: updatedTrx })) }); } catch(err) {}
       };
 
       const triggerCancelTrx = (trx) => {
-        const hoursDiff = (Date.now() - new Date(trx.created_at).getTime()) / (1000 * 60 * 60);
-        if (!isOwner && hoursDiff > 24) return showToast('Kasir tidak dapat membatalkan transaksi di atas 24 jam.', 'error');
-        
-        setAppDialog({ isOpen: true, type: 'prompt', title: 'Batalkan Transaksi', message: 'Masukkan alasan pembatalan:', onConfirm: async (reason) => {
+        setAppDialog({ isOpen: true, type: 'prompt', title: 'Permintaan Batalkan Transaksi', message: 'Masukkan alasan pembatalan:', onConfirm: async (reason) => {
           if (!reason) return;
-          setTransactions(transactions.map(t => t.id === trx.id ? { ...t, status: 'CANCELLED', cancel_reason: reason } : t));
-          showToast('Membatalkan transaksi...');
-          try { await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'cancel_transaction', trxId: trx.id, reason: reason })) }); } catch (err) {}
+
+          if (isOwner) {
+            executeCancellation(trx.id, reason);
+          } else {
+            const updatedTrxList = transactions.map(t => t.id === trx.id ? { ...t, status: 'PENDING_CANCEL', cancel_reason: reason, requested_by: currentUser.name } : t);
+            setTransactions(updatedTrxList);
+
+            const newNotif = {
+              id: 'NOTIF-' + Date.now(),
+              title: 'Permintaan Batal Transaksi',
+              message: `Kasir ${currentUser.name} meminta pembatalan transaksi #${trx.id} (${formatCurrency(trx.total_amount)}). Alasan: ${reason}`,
+              created_at: new Date().toISOString(),
+              is_read: false,
+              type: 'CANCEL_REQUEST',
+              trx_id: trx.id,
+              reason: reason
+            };
+            setNotifications([newNotif, ...notifications]);
+            showToast('Permintaan pembatalan dikirim ke Owner untuk persetujuan.');
+          }
         }});
+      };
+
+      const executeCancellation = (trxId, reason) => {
+        const targetTrx = transactions.find(t => t.id === trxId);
+        if (!targetTrx) return;
+
+        const item = targetTrx.items[0];
+        if (item) {
+          const prod = products.find(p => p.id === item.product_id);
+          if (prod) {
+            let targetId = prod.id;
+            let consumed = item.qty;
+            if (prod.master_id) {
+              targetId = prod.master_id;
+              consumed = item.qty / (prod.yield_per_master || 1);
+            }
+            const revertDelta = targetTrx.type === 'SALE' ? consumed : -consumed;
+            setProducts(products.map(p => p.id === targetId ? { ...p, stock: Math.round((p.stock + revertDelta) * 100) / 100 } : p));
+          }
+        }
+        setTransactions(transactions.map(t => t.id === trxId ? { ...t, status: 'CANCELLED', cancel_reason: reason } : t));
+        
+        const approveNotif = {
+          id: 'NOTIF-' + Date.now(),
+          title: 'Transaksi Dibatalkan',
+          message: `Transaksi #${trxId} telah resmi dibatalkan.`,
+          created_at: new Date().toISOString(),
+          is_read: false,
+          type: 'INFO'
+        };
+        setNotifications([approveNotif, ...notifications]);
+        showToast('Transaksi berhasil dibatalkan dan disetujui.');
+      };
+
+      const handleApproveCancel = (notif) => {
+        executeCancellation(notif.trx_id, notif.reason);
+        setNotifications(notifications.map(n => n.id === notif.id ? { ...n, is_read: true, handled: true } : n));
+      };
+
+      const handleRejectCancel = (notif) => {
+        setTransactions(transactions.map(t => t.id === notif.trx_id ? { ...t, status: 'COMPLETED' } : t));
+        setNotifications(notifications.map(n => n.id === notif.id ? { ...n, is_read: true, handled: true } : n));
+        showToast('Permintaan pembatalan ditolak.');
       };
 
       const submitExpense = async (e) => {
@@ -616,7 +720,7 @@
             const link = document.createElement("a");
             const url = URL.createObjectURL(blob);
             link.setAttribute("href", url);
-            link.setAttribute("download", `Laporan_POS_${selectedMonth + 1}_${selectedYear}.csv`);
+            link.setAttribute("download", `Laporan_Pro_Finance_${selectedMonth + 1}_${selectedYear}.csv`);
             link.style.visibility = 'hidden';
             document.body.appendChild(link);
             link.click();
@@ -624,6 +728,10 @@
             showToast('File CSV berhasil diunduh!');
           }
         } catch (err) { showToast('Koneksi gagal.', 'error'); } finally { setIsExporting(false); }
+      };
+
+      const handleExportPDF = () => {
+        window.print();
       };
 
       const handleShareReceipt = async () => {
@@ -649,27 +757,48 @@
 
       if (!isAuthenticated) {
         return (
-          <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-slate-900">
-            {toast && <div className={`fixed top-6 right-6 p-4 rounded-xl shadow-lg flex items-center space-x-3 text-white z-50 animate-modal ${toast.type === 'error' ? 'bg-rose-600' : 'bg-slate-950'}`}><i className={`ph-fill ${toast.type === 'error' ? 'ph-warning-circle' : 'ph-check-circle text-emerald-400'} text-xl`}></i><span className="font-medium text-sm">{toast.msg}</span></div>}
-            <div className="w-full max-w-md bg-white border border-slate-100 rounded-3xl p-8 shadow-2xl z-10 animate-in">
-              <div className="flex justify-center mb-6"><div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-500/30"><i className="ph-fill ph-storefront text-3xl"></i></div></div>
-              <div className="text-center mb-8"><h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">POS Retail Pro</h1><p className="text-xs text-slate-400 mt-1 font-medium">Enterprise Edition</p></div>
+          <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-slate-900 text-slate-100">
+            {toast && <div className={`fixed top-6 right-6 p-4 rounded-xl shadow-xl flex items-center space-x-3 text-white z-50 animate-modal ${toast.type === 'error' ? 'bg-rose-600' : 'bg-slate-950 border border-slate-700'}`}><i className={`ph-fill ${toast.type === 'error' ? 'ph-warning-circle' : 'ph-check-circle text-emerald-400'} text-xl`}></i><span className="font-medium text-sm">{toast.msg}</span></div>}
+            <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 shadow-2xl z-10 animate-in text-slate-900 dark:text-slate-100">
+              <div className="flex justify-center mb-6"><div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-500/30"><i className="ph-fill ph-chart-line-up text-3xl"></i></div></div>
+              <div className="text-center mb-8"><h1 className="text-2xl font-extrabold tracking-tight">Pro Finance</h1><p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Enterprise Edition</p></div>
+              
               {authView === 'login' && (
                 <form onSubmit={(e) => handleAuthSubmit(e, 'login')} className="space-y-4">
-                  <div><label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Email</label><input type="email" required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-600 outline-none bg-slate-50 text-sm font-medium" value={authForm.email} onChange={(e) => setAuthForm({...authForm, email: e.target.value})} /></div>
-                  <div><label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Sandi</label><input type="password" required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-600 outline-none bg-slate-50 text-sm font-medium" value={authForm.password} onChange={(e) => setAuthForm({...authForm, password: e.target.value})} /></div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">Email</label>
+                    <input type="email" required className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-blue-600 outline-none bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-medium" value={authForm.email} onChange={(e) => setAuthForm({...authForm, email: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">Sandi</label>
+                    <input type="password" required className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-blue-600 outline-none bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-medium" value={authForm.password} onChange={(e) => setAuthForm({...authForm, password: e.target.value})} />
+                  </div>
+
                   <button type="submit" disabled={isLoading} className="w-full py-3.5 px-4 rounded-xl text-white font-bold bg-blue-600 hover:bg-blue-700 active:scale-[0.98] transition shadow-md shadow-blue-500/20 disabled:opacity-70 text-sm">{isLoading ? 'Memproses...' : 'Masuk'}</button>
-                  <div className="flex items-center justify-center text-sm pt-2"><button type="button" onClick={() => setAuthView('register')} className="text-blue-600 hover:text-blue-700 font-semibold text-xs tracking-wide uppercase">Daftar Akun Baru</button></div>
+                  <div className="flex items-center justify-center text-sm pt-2"><button type="button" onClick={() => setAuthView('register')} className="text-blue-600 dark:text-blue-400 hover:text-blue-700 font-semibold text-xs tracking-wide uppercase">Daftar Akun Baru</button></div>
                 </form>
               )}
+
               {authView === 'register' && (
                 <form onSubmit={(e) => handleAuthSubmit(e, 'register')} className="space-y-3.5">
-                  <div><label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Nama</label><input type="text" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none bg-slate-50 text-sm font-medium" value={authForm.name} onChange={(e) => setAuthForm({...authForm, name: e.target.value})} /></div>
-                  <div><label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Email</label><input type="email" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none bg-slate-50 text-sm font-medium" value={authForm.email} onChange={(e) => setAuthForm({...authForm, email: e.target.value})} /></div>
-                  <div><label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Sandi</label><input type="password" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none bg-slate-50 text-sm font-medium" value={authForm.password} onChange={(e) => setAuthForm({...authForm, password: e.target.value})} /></div>
-                  <div><label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Nama Toko</label><input type="text" placeholder="Cth: Toko Berkah" className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none bg-slate-50 text-xs font-medium" value={authForm.store_name} onChange={(e) => setAuthForm({...authForm, store_name: e.target.value})} /></div>
-                  <button type="submit" disabled={isLoading} className="w-full py-3 px-4 rounded-xl text-white font-bold bg-slate-900 mt-2 text-sm">{isLoading ? 'Loading...' : 'Daftar'}</button>
-                  <div className="text-center text-xs pt-2"><button type="button" onClick={() => setAuthView('login')} className="text-slate-500 font-semibold hover:text-slate-900">Sudah punya? Masuk</button></div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">Nama</label>
+                    <input type="text" required className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 outline-none bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-medium" value={authForm.name} onChange={(e) => setAuthForm({...authForm, name: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">Email</label>
+                    <input type="email" required className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 outline-none bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-medium" value={authForm.email} onChange={(e) => setAuthForm({...authForm, email: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">Sandi</label>
+                    <input type="password" required className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 outline-none bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-medium" value={authForm.password} onChange={(e) => setAuthForm({...authForm, password: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">Nama Organisasi / Toko</label>
+                    <input type="text" placeholder="Cth: PT Finansial Utama" className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 outline-none bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-medium" value={authForm.store_name} onChange={(e) => setAuthForm({...authForm, store_name: e.target.value})} />
+                  </div>
+                  <button type="submit" disabled={isLoading} className="w-full py-3 px-4 rounded-xl text-white font-bold bg-slate-900 dark:bg-slate-800 mt-2 text-sm">{isLoading ? 'Loading...' : 'Daftar'}</button>
+                  <div className="text-center text-xs pt-2"><button type="button" onClick={() => setAuthView('login')} className="text-slate-600 dark:text-slate-400 font-semibold hover:text-slate-900 dark:hover:text-white">Sudah punya? Masuk</button></div>
                 </form>
               )}
             </div>
@@ -684,14 +813,17 @@
           {/* Sidebar */}
           <div className="w-64 bg-white dark:bg-[#121824] border-r border-slate-200 dark:border-slate-800/80 flex flex-col z-20 shadow-sm hidden md:flex transition-colors duration-300">
             <div className="h-20 flex items-center px-6 border-b border-slate-100 dark:border-slate-800/80">
-              <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold mr-3 shadow-md shadow-blue-600/30"><i className="ph-fill ph-storefront text-lg"></i></div>
-              <div><h1 className="text-base font-extrabold text-slate-900 dark:text-white leading-tight">POS Pro</h1><p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">{isOwner ? 'HQ Tenant' : 'Branch Node'}</p></div>
+              <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold mr-3 shadow-md shadow-blue-600/30"><i className="ph-fill ph-chart-line-up text-lg"></i></div>
+              <div><h1 className="text-base font-extrabold text-slate-900 dark:text-white leading-tight">Pro Finance</h1></div>
             </div>
             
             <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
               <p className="px-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3">Main Menu</p>
-              {[{ id: 'dashboard', icon: 'ph-squares-four', label: 'Tinjauan Laba' }, { id: 'transactions', icon: 'ph-receipt', label: 'Transaksi' }, { id: 'products', icon: 'ph-package', label: 'Stok Barang' }].map(item => (
-                <button key={item.id} onClick={() => setCurrentView(item.id)} className={`w-full flex items-center px-4 py-3 rounded-xl text-xs font-bold transition-all ${currentView === item.id ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white'}`}><i className={`ph ${item.icon} text-lg mr-3 ${currentView === item.id ? 'text-white' : 'text-slate-400'}`}></i> {item.label}</button>
+              {[{ id: 'dashboard', icon: 'ph-squares-four', label: 'Tinjauan Laba' }, { id: 'transactions', icon: 'ph-receipt', label: 'Transaksi' }, { id: 'products', icon: 'ph-package', label: 'Stok Barang' }, { id: 'notifications', icon: 'ph-bell', label: 'Notifikasi', badge: notifications.filter(n=>!n.is_read).length }].map(item => (
+                <button key={item.id} onClick={() => setCurrentView(item.id)} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-bold transition-all ${currentView === item.id ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white'}`}>
+                  <div className="flex items-center"><i className={`ph ${item.icon} text-lg mr-3 ${currentView === item.id ? 'text-white' : 'text-slate-400'}`}></i> {item.label}</div>
+                  {item.badge > 0 && <span className="bg-rose-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black">{item.badge}</span>}
+                </button>
               ))}
               {isOwner && (
                 <>
@@ -755,10 +887,13 @@
 
                       {isOwner && (
                         <div className="flex space-x-1.5 border-t lg:border-t-0 lg:border-l pt-3 lg:pt-0 lg:pl-3 border-slate-200 dark:border-slate-800 w-full lg:w-auto">
-                          <button onClick={handleRefreshCatalog} disabled={isRefreshing} title="Sinkron Ulang Data" className="bg-white dark:bg-[#182030] border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 p-2 rounded-xl text-sm font-semibold shadow-xs flex items-center justify-center">
+                          <button onClick={handleRefreshCatalog} disabled={isRefreshing} title="Sinkron Ulang Data" className="bg-white dark:bg-[#182030] border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 p-2 rounded-xl text-sm font-semibold shadow-xs flex items-center justify-center cursor-pointer">
                             <i className={`ph ph-arrows-clockwise ${isRefreshing ? 'animate-spin text-blue-600' : ''}`}></i>
                           </button>
-                          <button onClick={handleExportLocalCSV} disabled={isExporting} title="Unduh CSV/Excel" className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-xl text-xs font-bold transition flex items-center">
+                          <button onClick={handleExportPDF} title="Export Laporan PDF" className="bg-rose-600 hover:bg-rose-700 text-white px-3 py-2 rounded-xl text-xs font-bold transition flex items-center cursor-pointer">
+                            <i className="ph-bold ph-file-pdf mr-1 text-sm"></i> PDF
+                          </button>
+                          <button onClick={handleExportLocalCSV} disabled={isExporting} title="Unduh CSV/Excel" className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-xl text-xs font-bold transition flex items-center cursor-pointer">
                             <i className="ph-bold ph-file-csv mr-1 text-sm"></i> CSV
                           </button>
                         </div>
@@ -791,7 +926,7 @@
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                       <div className="lg:col-span-2 bg-white dark:bg-[#121824] rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card dark:shadow-dark-card p-6 flex flex-col">
                         <div className="flex justify-between items-center mb-6">
-                          <div><h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Sales Overview</h3></div>
+                          <div><h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Sales Overview (Completed Only)</h3></div>
                           <span className="text-xs font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/60 px-3 py-1.5 rounded-xl">{dashboardFilterMode === 'monthly' ? `Bulan ${monthNames[selectedMonth]}` : `Tahun ${selectedYear}`}</span>
                         </div>
                         <div className="h-56 relative w-full flex items-center justify-center pt-2">
@@ -866,7 +1001,7 @@
                     {/* Recent Orders */}
                     <div className="bg-white dark:bg-[#121824] rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card dark:shadow-dark-card p-6">
                        <div className="flex justify-between items-center mb-5">
-                          <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Recent Orders</h3>
+                          <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Recent Orders (Completed Only)</h3>
                           <button onClick={() => setCurrentView('transactions')} className="text-xs text-blue-500 font-bold hover:underline">View all</button>
                        </div>
                        <div className="overflow-x-auto">
@@ -882,7 +1017,7 @@
                                         <p className="text-[11px] text-slate-400">{trx.items[0]?.product_name || 'Item'}</p>
                                       </td>
                                       <td className="py-3.5 px-2 font-black text-slate-900 dark:text-white">{formatCurrency(trx.total_amount)}</td>
-                                      <td className="py-3.5 px-2"><span className={`inline-block px-2.5 py-1 rounded-md text-[10px] font-extrabold uppercase tracking-wider ${trx.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>{trx.status}</span></td>
+                                      <td className="py-3.5 px-2"><span className="inline-block px-2.5 py-1 rounded-md text-[10px] font-extrabold uppercase tracking-wider bg-emerald-500/10 text-emerald-400">COMPLETED</span></td>
                                       <td className="py-3.5 px-2 text-right text-[11px] font-medium text-slate-400 whitespace-nowrap">{timeAgo(trx.created_at)}</td>
                                     </tr>
                                   ))
@@ -899,8 +1034,11 @@
               {currentView === 'transactions' && (
                 <div className="space-y-6">
                   <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Riwayat Transaksi</h2>
-                    <button onClick={() => setShowAddTransaction(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-sm flex items-center cursor-pointer"><i className="ph-bold ph-plus mr-2"></i> Catat Transaksi</button>
+                    <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Riwayat Transaksi (Sukses)</h2>
+                    <div className="flex space-x-2">
+                      <button onClick={handleExportPDF} className="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm flex items-center cursor-pointer"><i className="ph-bold ph-file-pdf mr-1.5"></i> Export PDF</button>
+                      <button onClick={() => setShowAddTransaction(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-sm flex items-center cursor-pointer"><i className="ph-bold ph-plus mr-2"></i> Catat Transaksi</button>
+                    </div>
                   </div>
                   <div className="bg-white dark:bg-[#121824] rounded-2xl shadow-card dark:shadow-dark-card border border-slate-200/60 dark:border-slate-800/80 overflow-x-auto">
                     <table className="min-w-full text-xs text-left">
@@ -915,22 +1053,27 @@
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                         {viewTransactions.length === 0 ? (
-                          <tr><td colSpan="5" className="text-center py-16 text-slate-400 font-medium">Belum ada transaksi.</td></tr>
+                          <tr><td colSpan="5" className="text-center py-16 text-slate-400 font-medium">Belum ada transaksi sukses.</td></tr>
                         ) : (
                           viewTransactions.map(trx => {
-                            const hoursDiff = (Date.now() - new Date(trx.created_at).getTime()) / (1000 * 60 * 60);
-                            const isExpired = !isOwner && hoursDiff > 24;
+                            const isPending = trx.status === 'PENDING_CANCEL';
                             return (
                               <tr key={trx.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
                                 <td className="px-6 py-4"><span className="font-bold text-slate-900 dark:text-white block">{trx.id}</span><span className="text-[11px] font-medium text-slate-400">{new Date(trx.created_at).toLocaleString('id-ID')}</span></td>
                                 <td className="px-6 py-4"><span className={`inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-extrabold uppercase tracking-wide ${trx.type === 'SALE' ? 'bg-blue-500/10 text-blue-400' : 'bg-slate-500/10 text-slate-400'}`}>{trx.type}</span></td>
                                 <td className="px-6 py-4 font-black text-slate-900 dark:text-white">{formatCurrency(trx.total_amount)}</td>
-                                <td className="px-6 py-4"><span className={`inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-extrabold uppercase tracking-wide ${trx.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>{trx.status}</span></td>
+                                <td className="px-6 py-4">
+                                  {isPending ? (
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-extrabold uppercase tracking-wide bg-amber-500/10 text-amber-500">PENDING CANCEL</span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-extrabold uppercase tracking-wide bg-emerald-500/10 text-emerald-400">COMPLETED</span>
+                                  )}
+                                </td>
                                 <td className="px-6 py-4 text-right space-x-1 whitespace-nowrap">
-                                  {trx.type === 'SALE' && trx.status === 'COMPLETED' && (
+                                  {trx.type === 'SALE' && (
                                     <button onClick={() => setSelectedReceiptTrx(trx)} className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold transition inline-flex items-center cursor-pointer"><i className="ph-bold ph-printer text-sm mr-1"></i> Struk</button>
                                   )}
-                                  {trx.status === 'COMPLETED' && !isExpired && (
+                                  {!isPending && (
                                     <>
                                       <button onClick={() => setEditingTrx({ id: trx.id, type: trx.type, product_id: trx.items[0]?.product_id, qty: trx.items[0]?.qty, admin_fee: trx.admin_fee || 0 })} className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold transition inline-flex items-center cursor-pointer"><i className="ph-bold ph-pencil text-sm mr-1"></i> Edit</button>
                                       <button onClick={() => triggerCancelTrx(trx)} className="text-slate-400 hover:text-rose-600 p-2 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition cursor-pointer" title="Batalkan"><i className="ph-bold ph-arrow-u-up-left text-base"></i></button>
@@ -947,11 +1090,47 @@
                 </div>
               )}
 
+              {/* NOTIFICATIONS VIEW */}
+              {currentView === 'notifications' && (
+                <div className="space-y-6 max-w-3xl">
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Notifikasi Sistem & Persetujuan</h2>
+                    <button onClick={() => setNotifications(notifications.map(n => ({...n, is_read: true})))} className="text-xs font-bold text-blue-500 hover:underline">Tandai semua dibaca</button>
+                  </div>
+                  <div className="space-y-3">
+                    {notifications.length === 0 ? (
+                      <div className="bg-white dark:bg-[#121824] rounded-2xl p-12 text-center text-slate-400 font-medium border border-slate-200/60 dark:border-slate-800">Tidak ada notifikasi baru.</div>
+                    ) : (
+                      notifications.map(n => (
+                        <div key={n.id} className={`bg-white dark:bg-[#121824] p-5 rounded-2xl border shadow-xs transition ${!n.is_read ? 'border-blue-500/50 bg-blue-50/30 dark:bg-blue-950/20' : 'border-slate-200/60 dark:border-slate-800'}`}>
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex items-center space-x-2">
+                              <span className={`w-2.5 h-2.5 rounded-full ${!n.is_read ? 'bg-blue-600 animate-pulse' : 'bg-slate-300'}`}></span>
+                              <h4 className="font-extrabold text-slate-900 dark:text-white text-xs uppercase tracking-wide">{n.title}</h4>
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-400">{timeAgo(n.created_at)}</span>
+                          </div>
+                          <p className="text-xs text-slate-600 dark:text-slate-300 mb-3 font-medium">{n.message}</p>
+                          
+                          {n.type === 'CANCEL_REQUEST' && !n.handled && isOwner && (
+                            <div className="flex space-x-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                              <button onClick={() => handleApproveCancel(n)} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition">Setujui Pembatalan</button>
+                              <button onClick={() => handleRejectCancel(n)} className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition">Tolak</button>
+                            </div>
+                          )}
+                          {n.handled && <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-wider">Telah Ditangani</p>}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* PRODUCTS VIEW */}
               {currentView === 'products' && (
                 <div className="space-y-6">
                   <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Katalog Produk</h2>
+                    <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Katalog Produk & Varian</h2>
                     <div className="flex space-x-2">
                       <button onClick={handleRefreshCatalog} className="bg-white dark:bg-[#182030] border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 px-4 py-2.5 rounded-xl text-xs font-bold shadow-xs flex items-center cursor-pointer"><i className="ph ph-arrows-clockwise text-sm mr-2"></i> Sinkronkan</button>
                       <button onClick={() => setShowAddProduct(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-sm flex items-center cursor-pointer"><i className="ph-bold ph-plus mr-2"></i> Tambah Produk</button>
@@ -961,24 +1140,33 @@
                     {filteredProducts.length === 0 ? (
                        <div className="col-span-full bg-white dark:bg-[#121824] border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-16 text-center text-slate-400 font-medium"><p>Katalog masih kosong.</p></div>
                     ) : (
-                      filteredProducts.map(p => (
-                        <div key={p.id} className="bg-white dark:bg-[#121824] p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card dark:shadow-dark-card relative group">
-                          <div className="flex justify-between items-start mb-4">
-                            <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center"><i className="ph-fill ph-barcode text-lg"></i></div>
-                            <div className="flex items-center space-x-1.5">
-                              <span className="px-2 py-1 text-[10px] font-extrabold rounded-md uppercase tracking-wider bg-emerald-500/10 text-emerald-400">Stok: {p.stock}</span>
-                              <button type="button" onClick={() => setEditingProduct(p)} className="w-7 h-7 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg flex items-center justify-center hover:bg-slate-200 cursor-pointer" title="Edit"><i className="ph-bold ph-pencil text-xs"></i></button>
-                              <button type="button" onClick={() => triggerDeleteProduct(p.id)} className="w-7 h-7 bg-rose-500/10 text-rose-500 rounded-lg flex items-center justify-center hover:bg-rose-500/20 cursor-pointer" title="Hapus"><i className="ph-bold ph-trash text-xs"></i></button>
+                      filteredProducts.map(p => {
+                        const calculatedStock = getAvailableStock(p, products);
+                        const masterProduct = p.master_id ? products.find(m => m.id === p.master_id) : null;
+                        return (
+                          <div key={p.id} className="bg-white dark:bg-[#121824] p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card dark:shadow-dark-card relative group flex flex-col justify-between">
+                            <div>
+                              <div className="flex justify-between items-start mb-4">
+                                <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center"><i className="ph-fill ph-barcode text-lg"></i></div>
+                                <div className="flex items-center space-x-1.5">
+                                  <span className="px-2 py-1 text-[10px] font-extrabold rounded-md uppercase tracking-wider bg-emerald-500/10 text-emerald-400">Stok: {calculatedStock}</span>
+                                  <button type="button" onClick={() => setEditingProduct(p)} className="w-7 h-7 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg flex items-center justify-center hover:bg-slate-200 cursor-pointer" title="Edit"><i className="ph-bold ph-pencil text-xs"></i></button>
+                                  <button type="button" onClick={() => triggerDeleteProduct(p.id)} className="w-7 h-7 bg-rose-500/10 text-rose-500 rounded-lg flex items-center justify-center hover:bg-rose-500/20 cursor-pointer" title="Hapus"><i className="ph-bold ph-trash text-xs"></i></button>
+                                </div>
+                              </div>
+                              <h3 className="font-bold text-slate-900 dark:text-white mb-1 truncate text-sm">{p.name}</h3>
+                              <p className="text-[10px] text-slate-400 font-mono mb-2">ID: {p.id}</p>
+                              {masterProduct && (
+                                <p className="text-[10px] bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 p-1.5 rounded-lg mb-3 font-medium">Varian dari: <b>{masterProduct.name}</b> (Yield: {p.yield_per_master}x)</p>
+                              )}
+                            </div>
+                            <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex justify-between items-end mt-4">
+                              <div><p className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Harga Jual</p><p className="font-black text-slate-900 dark:text-white">{formatCurrency(p.selling_price)}</p></div>
+                              <div className="text-right"><p className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Modal</p><p className="text-xs font-bold text-slate-500">{formatCurrency(p.purchase_price)}</p></div>
                             </div>
                           </div>
-                          <h3 className="font-bold text-slate-900 dark:text-white mb-1 truncate text-sm">{p.name}</h3>
-                          <p className="text-[10px] text-slate-400 font-mono mb-3">ID: {p.id}</p>
-                          <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex justify-between items-end">
-                            <div><p className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Harga Jual</p><p className="font-black text-slate-900 dark:text-white">{formatCurrency(p.selling_price)}</p></div>
-                            <div className="text-right"><p className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Modal</p><p className="text-xs font-bold text-slate-500">{formatCurrency(p.purchase_price)}</p></div>
-                          </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </div>
@@ -1109,7 +1297,20 @@
                           <input type="text" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white font-mono text-xs focus:ring-2 focus:ring-blue-600 outline-none" value={profileForm.spreadsheet_id} onChange={(e) => setProfileForm({...profileForm, spreadsheet_id: e.target.value})} />
                         </div>
                       )}
+
+                      <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                        <h4 className="font-bold text-slate-900 dark:text-white text-xs">Ganti Kata Sandi (Opsional)</h4>
+                        <div>
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Kata Sandi Lama</label>
+                          <input type="password" placeholder="••••••••" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs outline-none" value={profileForm.oldPassword} onChange={(e) => setProfileForm({...profileForm, oldPassword: e.target.value})} />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Kata Sandi Baru</label>
+                          <input type="password" placeholder="••••••••" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs outline-none" value={profileForm.newPassword} onChange={(e) => setProfileForm({...profileForm, newPassword: e.target.value})} />
+                        </div>
+                      </div>
                     </div>
+
                     <div className="mt-6 flex justify-end"><button type="submit" disabled={isLoading} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold text-xs shadow-sm transition disabled:opacity-70 cursor-pointer">{isLoading ? 'Menyimpan...' : 'Simpan Perubahan'}</button></div>
                   </form>
                 </div>
@@ -1141,7 +1342,7 @@
           {newStoreModal.isOpen && (
             <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999]">
               <div className="bg-white dark:bg-[#121824] rounded-3xl w-full max-w-md shadow-2xl animate-modal border border-slate-100 dark:border-slate-800 p-6 text-center">
-                <h3 className="text-lg font-extrabold text-slate-900 dark:text-white mb-2">Toko Baru Dibuat!</h3>
+                <h3 className="text-lg font-extrabold text-slate-900 dark:text-white mb-2">Organisasi Baru Dibuat!</h3>
                 <input type="text" readOnly className="w-full px-3 py-2 bg-slate-50 dark:bg-[#182030] dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] font-mono text-center mb-6 select-all" value={newStoreModal.url} />
                 <button onClick={() => setNewStoreModal({ isOpen: false, url: '' })} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold text-xs cursor-pointer">Tutup</button>
               </div>
@@ -1169,8 +1370,11 @@
                 <div className="flex justify-between items-center mb-5"><h3 className="text-lg font-extrabold text-slate-900 dark:text-white">Catat Transaksi</h3><button onClick={() => setShowAddTransaction(false)} className="w-7 h-7 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-full cursor-pointer"><i className="ph-bold ph-x text-xs"></i></button></div>
                 <form onSubmit={submitTransaction} className="space-y-3.5">
                   <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Tipe</label><select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newTrx.type} onChange={(e)=>setNewTrx({...newTrx, type: e.target.value})}><option value="SALE">Penjualan</option><option value="PURCHASE">Pembelian Stok</option></select></div>
-                  <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Produk</label><select required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newTrx.product_id} onChange={(e)=>setNewTrx({...newTrx, product_id: e.target.value})}><option value="">Pilih Produk...</option>{filteredProducts.map(p => <option key={p.id} value={p.id}>{p.name} (Stok: {p.stock})</option>)}</select></div>
+                  <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Produk</label><select required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newTrx.product_id} onChange={(e)=>setNewTrx({...newTrx, product_id: e.target.value})}><option value="">Pilih Produk...</option>{filteredProducts.map(p => <option key={p.id} value={p.id}>{p.name} (Stok: {getAvailableStock(p, products)})</option>)}</select></div>
                   <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Jumlah Qty</label><input type="number" min="1" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newTrx.qty} onChange={(e)=>setNewTrx({...newTrx, qty: e.target.value})} /></div>
+                  {newTrx.type === 'SALE' && (
+                    <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Biaya Admin (Rp)</label><input type="number" min="0" placeholder="0" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newTrx.admin_fee} onChange={(e)=>setNewTrx({...newTrx, admin_fee: e.target.value})} /></div>
+                  )}
                   <button type="submit" className="w-full mt-3 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-md hover:bg-blue-700 transition cursor-pointer">Simpan Transaksi</button>
                 </form>
               </div>
@@ -1186,6 +1390,9 @@
                   <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Tipe</label><select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingTrx.type} onChange={(e)=>setEditingTrx({...editingTrx, type: e.target.value})}><option value="SALE">Penjualan</option><option value="PURCHASE">Pembelian Stok</option></select></div>
                   <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Produk</label><select required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingTrx.product_id} onChange={(e)=>setEditingTrx({...editingTrx, product_id: e.target.value})}><option value="">Pilih...</option>{filteredProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
                   <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Qty</label><input type="number" min="1" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingTrx.qty} onChange={(e)=>setEditingTrx({...editingTrx, qty: e.target.value})} /></div>
+                  {editingTrx.type === 'SALE' && (
+                    <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Biaya Admin (Rp)</label><input type="number" min="0" placeholder="0" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingTrx.admin_fee} onChange={(e)=>setEditingTrx({...editingTrx, admin_fee: e.target.value})} /></div>
+                  )}
                   <button type="submit" className="w-full mt-3 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-md hover:bg-blue-700 transition cursor-pointer">Simpan Perubahan</button>
                 </form>
               </div>
@@ -1203,7 +1410,7 @@
                 <div className="p-6 overflow-y-auto flex-1 bg-slate-100 dark:bg-[#0b0f19] flex justify-center">
                   <div ref={receiptRef} id="printable-receipt" className="bg-white p-6 w-[320px] shadow-sm font-mono text-xs text-slate-800 space-y-3 rounded-xl border border-slate-200">
                     <div className="text-center pb-3 border-b border-dashed border-slate-200">
-                      <h4 className="font-black text-sm uppercase tracking-wider text-slate-900">POS RETAIL PRO</h4>
+                      <h4 className="font-black text-sm uppercase tracking-wider text-slate-900">PRO FINANCE</h4>
                       <p className="text-[10px] text-slate-500 mt-0.5">{branches.find(b => b.id === selectedReceiptTrx.branch_id)?.name || 'Cabang'}</p>
                       <p className="text-[10px] text-slate-400 mt-1">ID: {selectedReceiptTrx.id}</p>
                       <p className="text-[10px] text-slate-400">{new Date(selectedReceiptTrx.created_at).toLocaleString('id-ID')}</p>
@@ -1233,11 +1440,25 @@
           {/* ADD PRODUCT MODAL */}
           {showAddProduct && (
             <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999]">
-              <div className="bg-white dark:bg-[#121824] p-6 rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800">
-                <div className="flex justify-between items-center mb-5"><h3 className="text-lg font-extrabold text-slate-900 dark:text-white">Produk Baru</h3><button onClick={() => setShowAddProduct(false)} className="w-7 h-7 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-full cursor-pointer"><i className="ph-bold ph-x text-xs"></i></button></div>
+              <div className="bg-white dark:bg-[#121824] p-6 rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 max-h-[90vh] overflow-y-auto">
+                <div className="flex justify-between items-center mb-5"><h3 className="text-lg font-extrabold text-slate-900 dark:text-white">Produk Baru / Varian</h3><button onClick={() => setShowAddProduct(false)} className="w-7 h-7 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-full cursor-pointer"><i className="ph-bold ph-x text-xs"></i></button></div>
                 <form onSubmit={submitProduct} className="space-y-3.5">
                   <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Nama Produk</label><input type="text" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newProduct.name} onChange={(e)=>setNewProduct({...newProduct, name: e.target.value})} /></div>
-                  <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Stok Awal</label><input type="number" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newProduct.stock} onChange={(e)=>setNewProduct({...newProduct, stock: e.target.value})} /></div>
+                  
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Produk Master (Opsional untuk Varian)</label>
+                    <select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold cursor-pointer" value={newProduct.master_id} onChange={(e)=>setNewProduct({...newProduct, master_id: e.target.value})}>
+                      <option value="">-- Produk Mandiri (Bukan Varian) --</option>
+                      {filteredProducts.filter(p => !p.master_id).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+
+                  {newProduct.master_id ? (
+                    <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Yield / Isi per Master</label><input type="number" step="0.1" min="0.1" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newProduct.yield_per_master} onChange={(e)=>setNewProduct({...newProduct, yield_per_master: e.target.value})} /></div>
+                  ) : (
+                    <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Stok Awal</label><input type="number" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newProduct.stock} onChange={(e)=>setNewProduct({...newProduct, stock: e.target.value})} /></div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-3">
                     <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Modal (Rp)</label><input type="number" required className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newProduct.purchase_price} onChange={(e)=>setNewProduct({...newProduct, purchase_price: e.target.value})} /></div>
                     <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Jual (Rp)</label><input type="number" required className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newProduct.selling_price} onChange={(e)=>setNewProduct({...newProduct, selling_price: e.target.value})} /></div>
@@ -1251,11 +1472,25 @@
           {/* EDIT PRODUCT MODAL */}
           {editingProduct && (
             <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999]">
-              <div className="bg-white dark:bg-[#121824] p-6 rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800">
-                <div className="flex justify-between items-center mb-5"><h3 className="text-lg font-extrabold text-slate-900 dark:text-white">Edit Produk</h3><button onClick={() => setEditingProduct(null)} className="w-7 h-7 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-full cursor-pointer"><i className="ph-bold ph-x text-xs"></i></button></div>
+              <div className="bg-white dark:bg-[#121824] p-6 rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 max-h-[90vh] overflow-y-auto">
+                <div className="flex justify-between items-center mb-5"><h3 className="text-lg font-extrabold text-slate-900 dark:text-white">Edit Produk / Varian</h3><button onClick={() => setEditingProduct(null)} className="w-7 h-7 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-full cursor-pointer"><i className="ph-bold ph-x text-xs"></i></button></div>
                 <form onSubmit={submitEditProduct} className="space-y-3.5">
                   <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Nama</label><input type="text" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingProduct.name} onChange={(e)=>setEditingProduct({...editingProduct, name: e.target.value})} /></div>
-                  <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Stok</label><input type="number" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingProduct.stock} onChange={(e)=>setEditingProduct({...editingProduct, stock: e.target.value})} /></div>
+                  
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Produk Master</label>
+                    <select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold cursor-pointer" value={editingProduct.master_id || ''} onChange={(e)=>setEditingProduct({...editingProduct, master_id: e.target.value || null})}>
+                      <option value="">-- Produk Mandiri --</option>
+                      {filteredProducts.filter(p => p.id !== editingProduct.id && !p.master_id).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+
+                  {editingProduct.master_id ? (
+                    <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Yield per Master</label><input type="number" step="0.1" min="0.1" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingProduct.yield_per_master || 1} onChange={(e)=>setEditingProduct({...editingProduct, yield_per_master: e.target.value})} /></div>
+                  ) : (
+                    <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Stok</label><input type="number" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingProduct.stock} onChange={(e)=>setEditingProduct({...editingProduct, stock: e.target.value})} /></div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-3">
                     <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Modal</label><input type="number" required className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingProduct.purchase_price} onChange={(e)=>setEditingProduct({...editingProduct, purchase_price: e.target.value})} /></div>
                     <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Jual</label><input type="number" required className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingProduct.selling_price} onChange={(e)=>setEditingProduct({...editingProduct, selling_price: e.target.value})} /></div>
