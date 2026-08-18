@@ -2,10 +2,12 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
   <title>Pro Finance - Modern Financial & POS</title>
   
   <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/8653/8653200.png">
   
@@ -38,7 +40,14 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
   <style>
-    body { overflow-x: hidden; touch-action: manipulation; }
+    html { height: -webkit-fill-available; }
+    body { 
+      overflow-x: hidden; 
+      touch-action: manipulation; 
+      height: 100%;
+      height: -webkit-fill-available;
+      overscroll-behavior: none;
+    }
     button, input, select { cursor: pointer; }
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -48,6 +57,7 @@
     .animate-in { animation: fadeSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
     @keyframes fadeInScale { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: scale(1); } }
     .animate-modal { animation: fadeInScale 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    .modal-scroll { max-height: 65vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
     @media print {
       body * { visibility: hidden !important; }
@@ -62,15 +72,6 @@
 </head>
 <body class="bg-slate-50 dark:bg-[#0b0f19] text-slate-800 dark:text-slate-100 antialiased selection:bg-blue-600 selection:text-white transition-colors duration-300">
   <div id="root"></div>
-
-  <script>
-    window.addEventListener('error', function(e) {
-      const root = document.getElementById('root');
-      if (root && root.innerHTML.trim() === '') {
-        root.innerHTML = `<div style="padding: 40px; font-family: sans-serif; color: #dc2626;"><h3>Terjadi Kesalahan Saat Memuat Aplikasi</h3><p>${e.message} (Line: ${e.lineno})</p></div>`;
-      }
-    });
-  </script>
 
   <script type="text/babel">
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxrA-dYXQnCgsEYPHdDgEpVGYqvo9K_HnmzNGHr5TH6F9bTwxMpf5r4LDPJVvmUixE/exec';
@@ -129,16 +130,15 @@
       const [expenses, setExpenses] = React.useState(() => { const saved = localStorage.getItem('pos_expenses'); return saved ? JSON.parse(saved) : []; });
 
       const [selectedReceiptTrx, setSelectedReceiptTrx] = React.useState(null);
+      const [selectedDetailTrx, setSelectedDetailTrx] = React.useState(null); // State baru untuk detail popup transaksi di mobile
       const [isGeneratingImage, setIsGeneratingImage] = React.useState(false);
       const receiptRef = React.useRef(null);
 
       const [editingProduct, setEditingProduct] = React.useState(null);
-      const [editingTrx, setEditingTrx] = React.useState(null);
       const [appDialog, setAppDialog] = React.useState({ isOpen: false, type: 'confirm', title: '', message: '', promptValue: '', onConfirm: null });
       const [newStoreModal, setNewStoreModal] = React.useState({ isOpen: false, url: '' });
 
       const [showAddProduct, setShowAddProduct] = React.useState(false);
-      // PERBAIKAN 1: Tambahkan branch_id 'ALL' secara default
       const [newProduct, setNewProduct] = React.useState({ name: '', purchase_price: '', selling_price: '', stock: '', master_id: '', yield_per_master: 1, branch_id: 'ALL' });
       const [showAddTransaction, setShowAddTransaction] = React.useState(false);
       const [newTrx, setNewTrx] = React.useState({ type: 'SALE', product_id: '', qty: 1, admin_fee: 0 });
@@ -160,11 +160,8 @@
 
       React.useEffect(() => {
         const rootHtml = document.documentElement;
-        if (themeMode === 'dark') {
-          rootHtml.classList.add('dark');
-        } else {
-          rootHtml.classList.remove('dark');
-        }
+        if (themeMode === 'dark') rootHtml.classList.add('dark');
+        else rootHtml.classList.remove('dark');
         localStorage.setItem('pos_theme_mode', themeMode);
       }, [themeMode]);
 
@@ -172,13 +169,11 @@
         localStorage.setItem('pos_notifications', JSON.stringify(notifications));
       }, [notifications]);
 
-      const getPayloadWithAuth = (basePayload) => {
-        return {
-          ...basePayload,
-          currentUserEmail: currentUser?.email || '',
-          spreadsheetId: currentUser?.spreadsheet_id || ''
-        };
-      };
+      const getPayloadWithAuth = (basePayload) => ({
+        ...basePayload,
+        currentUserEmail: currentUser?.email || '',
+        spreadsheetId: currentUser?.spreadsheet_id || ''
+      });
 
       const loadDataFromServer = async () => {
         if (!currentUser?.spreadsheet_id) return;
@@ -204,9 +199,7 @@
             const resultBranch = await resBranch.json();
             if (resultBranch.status === 'success') setBranches(resultBranch.data);
           }
-        } catch (error) {
-          console.error("Gagal memuat data", error);
-        }
+        } catch (error) { console.error("Gagal memuat data", error); }
       };
 
       React.useEffect(() => {
@@ -279,9 +272,7 @@
               setAuthView('login');
               setAuthForm(prev => ({ ...prev, password: '' }));
             }
-          } else {
-            showToast(result.message || 'Terjadi kesalahan.', 'error');
-          }
+          } else { showToast(result.message || 'Terjadi kesalahan.', 'error'); }
         } catch (error) { showToast('Koneksi server gagal.', 'error'); } finally { setIsLoading(false); }
       };
 
@@ -339,11 +330,7 @@
       const activeBranchId = isOwner ? (dashboardBranchFilter === 'ALL' ? null : dashboardBranchFilter) : currentUser?.branch_id;
       const dataViewBranchId = isOwner ? null : currentUser?.branch_id;
       
-      // PERBAIKAN 2: Kasir sekarang bisa melihat produk berstatus 'ALL' atau yang secara default 'b1' atau miliknya
-      const filteredProducts = isOwner 
-        ? products 
-        : products.filter(p => p.branch_id === dataViewBranchId || p.branch_id === 'ALL' || p.branch_id === 'b1' || !p.branch_id);
-        
+      const filteredProducts = isOwner ? products : products.filter(p => p.branch_id === dataViewBranchId || p.branch_id === 'ALL' || p.branch_id === 'b1' || !p.branch_id);
       const viewTransactions = (isOwner ? transactions : transactions.filter(t => t.branch_id === dataViewBranchId)).filter(t => t.status === 'COMPLETED');
       const viewExpenses = isOwner ? expenses : expenses.filter(e => e.branch_id === dataViewBranchId);
 
@@ -392,39 +379,15 @@
         const net_profit = total_sales - cogs - admin_fee - total_operational_expenses;
         const avg_order = order_count > 0 ? (total_sales / order_count) : 0;
         const topProducts = Object.values(topSalesMap).sort((a,b) => b.total - a.total).slice(0, 5);
-        const maxProdSales = topProducts.length > 0 ? topProducts[0].total : 1;
         const recentTrx = [...filteredTransactionsForDash].sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5);
 
-        return { total_sales, cogs, admin_fee, total_operational_expenses, total_purchases, net_profit, order_count, avg_order, topProducts, maxProdSales, recentTrx };
+        return { total_sales, cogs, admin_fee, total_operational_expenses, total_purchases, net_profit, order_count, avg_order, topProducts, recentTrx };
       }, [filteredTransactionsForDash, filteredExpensesForDash]);
-
-      const dailyChartData = React.useMemo(() => {
-        const daysMap = {}; let maxDays = 31;
-        if (dashboardFilterMode === 'monthly') {
-          maxDays = new Date(selectedYear, Number(selectedMonth) + 1, 0).getDate();
-          for (let d = 1; d <= maxDays; d++) daysMap[d] = { label: d, revenue: 0 };
-        } else {
-          const ms = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
-          for (let m = 0; m < 12; m++) daysMap[m + 1] = { label: ms[m], revenue: 0 };
-        }
-        filteredTransactionsForDash.filter(t => t.type === 'SALE').forEach(t => {
-          const d = new Date(t.created_at);
-          const key = dashboardFilterMode === 'monthly' ? d.getDate() : d.getMonth() + 1;
-          if (daysMap[key]) daysMap[key].revenue += t.total_amount;
-        });
-        return Object.values(daysMap);
-      }, [filteredTransactionsForDash, dashboardFilterMode, selectedMonth, selectedYear]);
-
-      const maxChartVal = React.useMemo(() => {
-        let m = 10000; dailyChartData.forEach(item => { if (item.revenue > m) m = item.revenue; });
-        return m * 1.15; 
-      }, [dailyChartData]);
 
       const submitProduct = async (e) => {
         e.preventDefault();
         const newItem = { 
           id: 'PRD-' + Date.now().toString().slice(-6), 
-          // PERBAIKAN 3: Simpan nilai branch_id sesuai dropdown form
           branch_id: isOwner ? (newProduct.branch_id || 'ALL') : (currentUser.branch_id || 'b1'), 
           name: newProduct.name, 
           purchase_price: Number(newProduct.purchase_price), 
@@ -440,37 +403,6 @@
           await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'add_product', product: newItem })) }); 
           await loadDataFromServer();
         } catch (err) {}
-      };
-
-      const submitEditProduct = async (e) => {
-        e.preventDefault();
-        if (!editingProduct) return;
-        const updatedItem = { 
-          ...editingProduct, 
-          purchase_price: Number(editingProduct.purchase_price), 
-          selling_price: Number(editingProduct.selling_price), 
-          stock: editingProduct.master_id ? 0 : Number(editingProduct.stock),
-          master_id: editingProduct.master_id || null,
-          yield_per_master: Number(editingProduct.yield_per_master) || 1
-        };
-        setProducts(products.map(p => p.id === updatedItem.id ? updatedItem : p));
-        setEditingProduct(null);
-        showToast('Memperbarui produk...');
-        try { 
-          await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'update_product', product: updatedItem })) }); 
-          await loadDataFromServer();
-        } catch(e) {}
-      };
-
-      const triggerDeleteProduct = (id) => {
-        setAppDialog({ isOpen: true, type: 'confirm', title: 'Hapus Produk', message: 'Yakin hapus produk ini?', onConfirm: async () => {
-          setProducts(products.filter(p => p.id !== id));
-          try { 
-            await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'delete_product', productId: id })) }); 
-            await loadDataFromServer();
-            showToast('Dihapus.'); 
-          } catch(e) {}
-        }});
       };
 
       const submitTransaction = async (e) => {
@@ -501,73 +433,7 @@
         try { 
           await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'add_transaction', transaction: trx })) });
           await loadDataFromServer();
-        } catch(err) {
-          showToast('Gagal menyinkronkan transaksi ke server.', 'error');
-        }
-      };
-
-      const submitExpense = async (e) => {
-        e.preventDefault();
-        const exp = { id: 'EXP-' + Date.now().toString().slice(-6), branch_id: currentUser.branch_id || 'b1', amount: Number(newExp.amount), date: new Date().toISOString(), description: newExp.description };
-        setExpenses([exp, ...expenses]); setShowAddExpense(false);
-        setNewExp({ description: '', amount: '' });
-        showToast('Biaya operasional dicatat.');
-        try {
-          await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'add_expense', expense: exp })) });
-          await loadDataFromServer();
-        } catch(e) {}
-      };
-
-      const submitBranch = async (e) => {
-        e.preventDefault();
-        const b = { id: 'b' + (branches.length + 1), name: newBranch.name, location: newBranch.location, created_at: new Date().toISOString() };
-        setBranches([...branches, b]); setShowAddBranch(false);
-        setNewBranch({ name: '', location: '' });
-        showToast('Cabang ditambahkan.');
-        try {
-          await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'add_branch', branch: b })) });
-          await loadDataFromServer();
-        } catch(e) {}
-      };
-
-      const triggerDeleteBranch = (id) => {
-        setAppDialog({ isOpen: true, type: 'confirm', title: 'Hapus Cabang', message: 'Yakin hapus cabang ini?', onConfirm: async () => {
-          setBranches(branches.filter(b => b.id !== id));
-          try {
-            await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'delete_branch', branchId: id })) });
-            await loadDataFromServer();
-            showToast('Cabang dihapus.');
-          } catch(e) {}
-        }});
-      };
-
-      const submitUser = async (e) => {
-        e.preventDefault();
-        setIsLoading(true);
-        try {
-          const payload = { action: 'register', name: newUserForm.name, email: newUserForm.email, password: newUserForm.password, role: newUserForm.role, branch_id: newUserForm.branch_id };
-          const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
-          const result = await res.json();
-          if (result.status === 'success') {
-            setShowAddUser(false);
-            setNewUserForm({ name: '', email: '', password: '', role: 'CASHIER', branch_id: '' });
-            showToast('Karyawan berhasil ditambahkan!');
-            await loadDataFromServer();
-          } else {
-            showToast(result.message, 'error');
-          }
-        } catch(err) { showToast('Koneksi gagal', 'error'); } finally { setIsLoading(false); }
-      };
-
-      const triggerDeleteUser = (id) => {
-        setAppDialog({ isOpen: true, type: 'confirm', title: 'Hapus Karyawan', message: 'Yakin hapus akun karyawan ini?', onConfirm: async () => {
-          setUsers(users.filter(u => u.id !== id));
-          try {
-            await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'delete_user', userId: id })) });
-            await loadDataFromServer();
-            showToast('Karyawan dihapus.');
-          } catch(e) {}
-        }});
+        } catch(err) { showToast('Gagal menyinkronkan transaksi ke server.', 'error'); }
       };
 
       const triggerCancelTrx = (trx) => {
@@ -630,20 +496,7 @@
         try {
           await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'cancel_transaction', trxId: trxId, reason: reason })) });
           await loadDataFromServer();
-        } catch (err) {
-          showToast('Gagal menyinkronkan pembatalan ke server.', 'error');
-        }
-      };
-
-      const handleApproveCancel = async (notif) => {
-        await executeCancellation(notif.trx_id, notif.reason);
-        setNotifications(notifications.map(n => n.id === notif.id ? { ...n, is_read: true, handled: true } : n));
-      };
-
-      const handleRejectCancel = (notif) => {
-        setTransactions(transactions.map(t => t.id === notif.trx_id ? { ...t, status: 'COMPLETED' } : t));
-        setNotifications(notifications.map(n => n.id === notif.id ? { ...n, is_read: true, handled: true } : n));
-        showToast('Permintaan pembatalan ditolak.');
+        } catch (err) { showToast('Gagal menyinkronkan pembatalan ke server.', 'error'); }
       };
 
       const handleShareReceipt = async () => {
@@ -662,35 +515,6 @@
         } catch (err) { showToast('Gagal membuat gambar struk.', 'error'); } finally { setIsGeneratingImage(false); }
       };
 
-      const handleExportLocalCSV = async () => {
-        setIsExporting(true);
-        try {
-          const response = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'export_local_csv', stats: dashStatsExt })) });
-          const result = await response.json();
-          if (result.status === 'success') {
-            const blob = new Blob([result.csv_data], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a'); link.href = url; link.setAttribute('download', `Laporan_Keuangan_${selectedYear}.csv`);
-            document.body.appendChild(link); link.click(); document.body.removeChild(link);
-            showToast('Laporan berhasil diunduh!');
-          } else { showToast(result.message, 'error'); }
-        } catch (err) { showToast('Gagal mengekspor laporan.', 'error'); } finally { setIsExporting(false); }
-      };
-
-      const handleImportExternal = async () => {
-        setIsLoading(true);
-        try {
-          const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'import_external_catalog' })) });
-          const result = await res.json();
-          if (result.status === 'success') {
-            showToast(result.message);
-            await loadDataFromServer();
-          } else {
-            showToast(result.message, 'error');
-          }
-        } catch(e) { showToast('Gagal terhubung ke server', 'error'); } finally { setIsLoading(false); }
-      };
-
       if (!isAuthenticated) {
         return (
           <div className="min-h-screen bg-slate-100 dark:bg-[#070a14] flex items-center justify-center p-4">
@@ -699,62 +523,25 @@
                 {toast.msg}
               </div>
             )}
-            
             <div className="max-w-md w-full bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-2xl border border-slate-200/80 dark:border-slate-800">
               <div className="text-center mb-8">
                 <div className="w-12 h-12 bg-blue-600 rounded-2xl mx-auto flex items-center justify-center text-white text-xl font-black mb-4 shadow-lg shadow-blue-500/30">P</div>
                 <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Pro Finance POS</h1>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
-                  {authView === 'login' ? 'Silakan masuk ke akun Anda' : 'Daftarkan organisasi baru'}
-                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Silakan masuk ke akun Anda</p>
               </div>
-
-              {authView === 'login' ? (
-                <form onSubmit={(e) => handleAuthSubmit(e, 'login')} className="space-y-4">
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-widest mb-1.5">Email</label>
-                    <input type="email" required className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-blue-600 outline-none text-xs font-bold" value={authForm.email} onChange={(e) => setAuthForm({...authForm, email: e.target.value})} placeholder="owner@toko.com" />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-widest mb-1.5">Kata Sandi</label>
-                    <input type="password" required className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-blue-600 outline-none text-xs font-bold" value={authForm.password} onChange={(e) => setAuthForm({...authForm, password: e.target.value})} placeholder="••••••••" />
-                  </div>
-                  <button type="submit" disabled={isLoading} className="w-full py-3.5 px-4 rounded-xl text-white font-extrabold text-xs bg-blue-600 hover:bg-blue-700 transition shadow-lg shadow-blue-500/25 disabled:opacity-70 cursor-pointer">
-                    {isLoading ? 'Memproses...' : 'Masuk ke Sistem'}
-                  </button>
-                  <p className="text-center text-xs text-slate-500 dark:text-slate-400 pt-2 font-medium">
-                    Belum punya akun? <button type="button" onClick={() => setAuthView('register')} className="text-blue-500 font-bold hover:underline cursor-pointer">Daftar</button>
-                  </p>
-                </form>
-              ) : (
-                <form onSubmit={(e) => handleAuthSubmit(e, 'register')} className="space-y-3.5">
-                  <div><label className="block text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-widest mb-1">Nama Lengkap</label><input type="text" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs font-bold" value={authForm.name} onChange={(e) => setAuthForm({...authForm, name: e.target.value})} placeholder="Budi Owner" /></div>
-                  <div><label className="block text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-widest mb-1">Email</label><input type="email" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs font-bold" value={authForm.email} onChange={(e) => setAuthForm({...authForm, email: e.target.value})} placeholder="email@toko.com" /></div>
-                  <div><label className="block text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-widest mb-1">Kata Sandi</label><input type="password" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs font-bold" value={authForm.password} onChange={(e) => setAuthForm({...authForm, password: e.target.value})} placeholder="Minimal 6 karakter" /></div>
-                  
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-widest mb-1">Peran</label>
-                      <select className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs font-bold cursor-pointer" value={authForm.role} onChange={(e) => setAuthForm({...authForm, role: e.target.value})}>
-                        <option value="OWNER">Owner</option>
-                        <option value="CASHIER">Kasir</option>
-                      </select>
-                    </div>
-                    {authForm.role === 'OWNER' ? (
-                      <div><label className="block text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-widest mb-1">Nama Toko</label><input type="text" required className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs font-bold" value={authForm.store_name} onChange={(e) => setAuthForm({...authForm, store_name: e.target.value})} placeholder="Toko Saya" /></div>
-                    ) : (
-                      <div><label className="block text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-widest mb-1">ID Cabang</label><input type="text" required className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs font-bold" value={authForm.branch_id} onChange={(e) => setAuthForm({...authForm, branch_id: e.target.value})} placeholder="b1" /></div>
-                    )}
-                  </div>
-
-                  <button type="submit" disabled={isLoading} className="w-full mt-2 py-3.5 px-4 rounded-xl text-white font-extrabold text-xs bg-emerald-600 hover:bg-emerald-700 transition shadow-lg shadow-emerald-500/25 disabled:opacity-70 cursor-pointer">
-                    {isLoading ? 'Mendaftarkan...' : 'Daftar Sekarang'}
-                  </button>
-                  <p className="text-center text-xs text-slate-500 dark:text-slate-400 pt-2 font-medium">
-                    Sudah punya akun? <button type="button" onClick={() => setAuthView('login')} className="text-blue-500 font-bold hover:underline cursor-pointer">Masuk</button>
-                  </p>
-                </form>
-              )}
+              <form onSubmit={(e) => handleAuthSubmit(e, 'login')} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-widest mb-1.5">Email</label>
+                  <input type="email" required className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-blue-600 outline-none text-xs font-bold" value={authForm.email} onChange={(e) => setAuthForm({...authForm, email: e.target.value})} placeholder="owner@toko.com" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-widest mb-1.5">Kata Sandi</label>
+                  <input type="password" required className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-blue-600 outline-none text-xs font-bold" value={authForm.password} onChange={(e) => setAuthForm({...authForm, password: e.target.value})} placeholder="••••••••" />
+                </div>
+                <button type="submit" disabled={isLoading} className="w-full py-3.5 px-4 rounded-xl text-white font-extrabold text-xs bg-blue-600 hover:bg-blue-700 transition shadow-lg shadow-blue-500/25 disabled:opacity-70 cursor-pointer">
+                  {isLoading ? 'Memproses...' : 'Masuk ke Sistem'}
+                </button>
+              </form>
             </div>
           </div>
         );
@@ -762,14 +549,12 @@
 
       return (
         <div className="flex h-screen bg-slate-50 dark:bg-[#0b0f19] font-sans text-slate-800 dark:text-slate-100 overflow-hidden">
-          
           {toast && (
             <div className={`fixed top-4 right-4 p-4 rounded-2xl shadow-2xl text-white z-[99999] text-xs font-extrabold tracking-wide ${toast.type === 'error' ? 'bg-rose-600' : 'bg-emerald-600'}`}>
               {toast.msg}
             </div>
           )}
 
-          {/* MOBILE OVERLAY */}
           {mobileMenuOpen && (
             <div className="fixed inset-0 bg-slate-900/60 z-40 md:hidden backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)}></div>
           )}
@@ -825,7 +610,7 @@
               </div>
             </header>
 
-            <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50 dark:bg-[#0b0f19]">
+            <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50/50 dark:bg-[#0b0f19]">
               
               {/* DASHBOARD VIEW */}
               {currentView === 'dashboard' && (
@@ -847,11 +632,6 @@
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
-                      {isOwner && (
-                        <button onClick={handleExportLocalCSV} disabled={isExporting} className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm flex items-center cursor-pointer">
-                          {isExporting ? <i className="ph ph-spinner animate-spin mr-2"></i> : <i className="ph-bold ph-file-csv mr-2"></i>} CSV
-                        </button>
-                      )}
                       <button onClick={() => window.print()} className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition shadow-sm flex items-center cursor-pointer">
                         <i className="ph-bold ph-file-pdf mr-2"></i> PDF
                       </button>
@@ -878,133 +658,48 @@
                       <p className="text-2xl font-black">{formatCurrency(dashStatsExt.net_profit)}</p>
                     </div>
                   </div>
-
-                  {/* CHART & TOP PRODUCTS */}
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
-                    <div className="lg:col-span-2 bg-white dark:bg-[#121824] p-6 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card">
-                      <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6">Grafik Penjualan</h3>
-                      <div className="h-56 relative w-full pt-2">
-                        <svg className="w-full h-full overflow-visible" viewBox="0 0 700 200" preserveAspectRatio="none">
-                          {(() => {
-                            const n = dailyChartData.length; const stepX = n > 1 ? 700 / (n - 1) : 700;
-                            const points = dailyChartData.map((item, idx) => ({ x: idx * stepX, y: 180 - (maxChartVal > 0 ? (Math.max(0, item.revenue) / maxChartVal) * 160 : 0) }));
-                            const linePath = points.reduce((acc, p, i) => i === 0 ? `M ${p.x} ${p.y}` : `${acc} L ${p.x} ${p.y}`, '');
-                            return <path d={linePath} fill="none" stroke="#2563eb" strokeWidth="3" />
-                          })()}
-                        </svg>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-white dark:bg-[#121824] p-6 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card">
-                      <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6">Top Produk</h3>
-                      <div className="space-y-4">
-                        {dashStatsExt.topProducts.map((p, idx) => (
-                          <div key={idx} className="flex justify-between items-center text-xs">
-                            <span className="font-bold text-slate-900 dark:text-white">{p.name}</span>
-                            <span className="font-black text-blue-600 dark:text-blue-400">{formatCurrency(p.total)}</span>
-                          </div>
-                        ))}
-                        {dashStatsExt.topProducts.length === 0 && <p className="text-xs text-slate-400 text-center">Belum ada data</p>}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* RECENT TRANSACTIONS */}
-                  <div className="bg-white dark:bg-[#121824] p-6 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card mt-4">
-                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-5">Transaksi Terakhir</h3>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs">
-                        <thead className="border-b border-slate-100 dark:border-slate-800">
-                          <tr><th className="pb-3 text-slate-400">ID / Waktu</th><th className="pb-3 text-slate-400">Total</th><th className="pb-3 text-slate-400">Status</th></tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                          {dashStatsExt.recentTrx.map(trx => (
-                            <tr key={trx.id}>
-                              <td className="py-3"><span className="font-bold text-slate-900 dark:text-white block">{trx.id}</span><span className="text-[10px] text-slate-400">{new Date(trx.created_at).toLocaleString('id-ID')}</span></td>
-                              <td className="py-3 font-black text-slate-900 dark:text-white">{formatCurrency(trx.total_amount)}</td>
-                              <td className="py-3"><span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-500/10 text-emerald-400">{trx.status}</span></td>
-                            </tr>
-                          ))}
-                          {dashStatsExt.recentTrx.length === 0 && <tr><td colSpan="3" className="py-4 text-center text-slate-400">Belum ada transaksi</td></tr>}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
                 </div>
               )}
 
-              {/* TRANSACTIONS VIEW */}
+              {/* TRANSACTIONS VIEW - DENGAN MOBILE CARD LAYOUT YANG USER-FRIENDLY */}
               {currentView === 'transactions' && (
                 <div className="space-y-6">
-                  <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Histori Transaksi</h2>
-                    <button onClick={() => setShowAddTransaction(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-sm flex items-center cursor-pointer"><i className="ph-bold ph-plus mr-2"></i> Transaksi Baru</button>
+                  <div className="flex justify-between items-center mb-4">
+                    <div>
+                      <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Histori Transaksi</h2>
+                      <p className="text-xs text-slate-400 mt-0.5">Ketuk baris transaksi untuk melihat detail, struk, atau pembatalan.</p>
+                    </div>
+                    <button onClick={() => setShowAddTransaction(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm flex items-center cursor-pointer shrink-0"><i className="ph-bold ph-plus mr-1.5"></i> Baru</button>
                   </div>
-                  <div className="bg-white dark:bg-[#121824] rounded-2xl shadow-card dark:shadow-dark-card border border-slate-200/60 dark:border-slate-800/80 overflow-hidden">
-                    <table className="min-w-full text-xs text-left">
-                      <thead className="bg-slate-50 dark:bg-[#182030] border-b border-slate-100 dark:border-slate-800">
-                        <tr>
-                          <th className="px-6 py-4 font-black text-slate-400 uppercase tracking-wider text-[10px]">ID / Waktu</th>
-                          <th className="px-6 py-4 font-black text-slate-400 uppercase tracking-wider text-[10px]">Tipe</th>
-                          <th className="px-6 py-4 font-black text-slate-400 uppercase tracking-wider text-[10px]">Total Jumlah</th>
-                          <th className="px-6 py-4 font-black text-slate-400 uppercase tracking-wider text-[10px]">Status</th>
-                          <th className="px-6 py-4 text-right font-black text-slate-400 uppercase tracking-wider text-[10px]">Aksi</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                        {viewTransactions.length === 0 ? (
-                          <tr><td colSpan="5" className="text-center py-12 text-slate-400 font-medium">Belum ada transaksi.</td></tr>
-                        ) : (
-                          viewTransactions.map(t => (
-                            <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
-                              <td className="px-6 py-4"><span className="font-extrabold text-slate-900 dark:text-white block">{t.id}</span><span className="text-[10px] text-slate-400 font-medium">{new Date(t.created_at).toLocaleString('id-ID')}</span></td>
-                              <td className="px-6 py-4"><span className={`px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wide ${t.type === 'SALE' ? 'bg-blue-500/10 text-blue-500' : 'bg-purple-500/10 text-purple-400'}`}>{t.type}</span></td>
-                              <td className="px-6 py-4 font-black text-slate-900 dark:text-white">{formatCurrency(t.total_amount)}</td>
-                              <td className="px-6 py-4"><span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wide bg-emerald-500/10 text-emerald-400">{t.status}</span></td>
-                              <td className="px-6 py-4 text-right space-x-1.5">
-                                <button onClick={() => setSelectedReceiptTrx(t)} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold inline-flex items-center cursor-pointer"><i className="ph-bold ph-receipt mr-1"></i> Struk</button>
-                                <button onClick={() => triggerCancelTrx(t)} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 rounded-lg text-xs font-bold inline-flex items-center cursor-pointer"><i className="ph-bold ph-x mr-1"></i> Batalkan</button>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
 
-              {/* NOTIFICATIONS VIEW */}
-              {currentView === 'notifications' && (
-                <div className="space-y-6 max-w-3xl">
-                  <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Notifikasi Sistem & Persetujuan</h2>
-                    <button onClick={() => setNotifications(notifications.map(n => ({...n, is_read: true})))} className="text-xs font-bold text-blue-500 hover:underline cursor-pointer">Tandai semua dibaca</button>
-                  </div>
-                  <div className="space-y-3">
-                    {notifications.length === 0 ? (
-                      <div className="bg-white dark:bg-[#121824] rounded-2xl p-12 text-center text-slate-400 font-medium border border-slate-200/60 dark:border-slate-800">Tidak ada notifikasi baru.</div>
+                  {/* TAMPILAN CARD KHUSUS MOBILE / RESPONSIF */}
+                  <div className="grid grid-cols-1 gap-3">
+                    {viewTransactions.length === 0 ? (
+                      <div className="bg-white dark:bg-[#121824] rounded-2xl p-12 text-center text-slate-400 font-medium border border-slate-200/60 dark:border-slate-800">Belum ada transaksi.</div>
                     ) : (
-                      notifications.map(n => (
-                        <div key={n.id} className={`bg-white dark:bg-[#121824] p-5 rounded-2xl border shadow-xs transition ${!n.is_read ? 'border-blue-500/50 bg-blue-50/30 dark:bg-blue-950/20' : 'border-slate-200/60 dark:border-slate-800'}`}>
-                          <div className="flex justify-between items-start mb-2">
-                            <div className="flex items-center space-x-2">
-                              <span className={`w-2.5 h-2.5 rounded-full ${!n.is_read ? 'bg-blue-600 animate-pulse' : 'bg-slate-300'}`}></span>
-                              <h4 className="font-extrabold text-slate-900 dark:text-white text-xs uppercase tracking-wide">{n.title}</h4>
+                      viewTransactions.map(t => {
+                        const itemSummary = t.items && t.items.length > 0 ? t.items.map(i => `${i.qty}x ${i.product_name}`).join(', ') : 'Transaksi Produk';
+                        return (
+                          <div 
+                            key={t.id} 
+                            onClick={() => setSelectedDetailTrx(t)}
+                            className="bg-white dark:bg-[#121824] p-4 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card flex justify-between items-center active:scale-[0.99] transition cursor-pointer"
+                          >
+                            <div className="space-y-1 pr-3">
+                              <div className="flex items-center space-x-2">
+                                <span className="font-extrabold text-slate-900 dark:text-white text-xs">{t.id}</span>
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${t.type === 'SALE' ? 'bg-blue-500/10 text-blue-500' : 'bg-purple-500/10 text-purple-400'}`}>{t.type}</span>
+                              </div>
+                              <p className="text-xs text-slate-600 dark:text-slate-300 font-medium truncate max-w-[200px] sm:max-w-md">{itemSummary}</p>
+                              <p className="text-[10px] text-slate-400">{new Date(t.created_at).toLocaleString('id-ID')}</p>
                             </div>
-                            <span className="text-[10px] font-bold text-slate-400">{timeAgo(n.created_at)}</span>
+                            <div className="text-right shrink-0">
+                              <p className="text-xs font-black text-slate-900 dark:text-white">{formatCurrency(t.total_amount)}</p>
+                              <span className="inline-block mt-1 px-2 py-0.5 rounded text-[9px] font-black uppercase bg-emerald-500/10 text-emerald-400">{t.status}</span>
+                            </div>
                           </div>
-                          <p className="text-xs text-slate-600 dark:text-slate-300 mb-3 font-medium">{n.message}</p>
-                          
-                          {n.type === 'CANCEL_REQUEST' && !n.handled && isOwner && (
-                            <div className="flex space-x-2.5 pt-3 mt-2 border-t border-slate-100 dark:border-slate-800">
-                              <button type="button" onClick={() => handleApproveCancel(n)} className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer z-10 relative">Setujui Pembatalan</button>
-                              <button type="button" onClick={() => handleRejectCancel(n)} className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer z-10 relative">Tolak</button>
-                            </div>
-                          )}
-                          {n.handled && <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-wider mt-2">Telah Ditangani</p>}
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </div>
@@ -1017,11 +712,6 @@
                     <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Katalog Produk & Varian</h2>
                     <div className="flex space-x-2">
                       <button onClick={handleRefreshCatalog} className="bg-white dark:bg-[#182030] border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 px-4 py-2.5 rounded-xl text-xs font-bold shadow-xs flex items-center cursor-pointer"><i className="ph ph-arrows-clockwise text-sm mr-2"></i> Sinkronkan</button>
-                      {isOwner && (
-                        <button onClick={handleImportExternal} disabled={isLoading} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm flex items-center cursor-pointer">
-                          <i className="ph-bold ph-database text-sm mr-2"></i> Impor Katalog Eksternal
-                        </button>
-                      )}
                       <button onClick={() => setShowAddProduct(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-sm flex items-center cursor-pointer"><i className="ph-bold ph-plus mr-2"></i> Tambah Produk</button>
                     </div>
                   </div>
@@ -1031,27 +721,15 @@
                     ) : (
                       filteredProducts.map(p => {
                         const calculatedStock = getAvailableStock(p, products);
-                        const masterProduct = p.master_id ? products.find(m => m.id === p.master_id) : null;
                         return (
-                          <div key={p.id} className="bg-white dark:bg-[#121824] p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card dark:shadow-dark-card relative group flex flex-col justify-between">
+                          <div key={p.id} className="bg-white dark:bg-[#121824] p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card flex flex-col justify-between">
                             <div>
                               <div className="flex justify-between items-start mb-4">
                                 <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center"><i className="ph-fill ph-barcode text-lg"></i></div>
-                                <div className="flex items-center space-x-1.5">
-                                  <span className="px-2 py-1 text-[10px] font-extrabold rounded-md uppercase tracking-wider bg-emerald-500/10 text-emerald-400">Stok: {calculatedStock}</span>
-                                  {isOwner && (
-                                    <>
-                                      <button type="button" onClick={() => setEditingProduct(p)} className="w-7 h-7 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg flex items-center justify-center hover:bg-slate-200 cursor-pointer" title="Edit"><i className="ph-bold ph-pencil text-xs"></i></button>
-                                      <button type="button" onClick={() => triggerDeleteProduct(p.id)} className="w-7 h-7 bg-rose-500/10 text-rose-500 rounded-lg flex items-center justify-center hover:bg-rose-500/20 cursor-pointer" title="Hapus"><i className="ph-bold ph-trash text-xs"></i></button>
-                                    </>
-                                  )}
-                                </div>
+                                <span className="px-2 py-1 text-[10px] font-extrabold rounded-md uppercase tracking-wider bg-emerald-500/10 text-emerald-400">Stok: {calculatedStock}</span>
                               </div>
                               <h3 className="font-bold text-slate-900 dark:text-white mb-1 truncate text-sm">{p.name}</h3>
-                              <p className="text-[10px] text-slate-400 font-mono mb-2">ID: {p.id} {p.branch_id === 'ALL' && <span className="ml-1 bg-purple-100 text-purple-600 dark:bg-purple-900/30 px-1 py-0.5 rounded">Global</span>}</p>
-                              {masterProduct && (
-                                <p className="text-[10px] bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 p-1.5 rounded-lg mb-3 font-medium">Varian dari: <b>{masterProduct.name}</b> (Yield: {p.yield_per_master}x)</p>
-                              )}
+                              <p className="text-[10px] text-slate-400 font-mono mb-2">ID: {p.id}</p>
                             </div>
                             <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex justify-between items-end mt-4">
                               <div><p className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Harga Jual</p><p className="font-black text-slate-900 dark:text-white">{formatCurrency(p.selling_price)}</p></div>
@@ -1072,144 +750,178 @@
                     <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Biaya Operasional</h2>
                     <button onClick={() => setShowAddExpense(true)} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-sm flex items-center cursor-pointer"><i className="ph-bold ph-plus mr-2"></i> Catat Biaya</button>
                   </div>
-                  <div className="bg-white dark:bg-[#121824] rounded-2xl shadow-card dark:shadow-dark-card border border-slate-200/60 dark:border-slate-800/80 overflow-hidden">
-                    <table className="min-w-full text-xs text-left">
-                      <thead className="bg-slate-50 dark:bg-[#182030] border-b border-slate-100 dark:border-slate-800">
-                        <tr><th className="px-6 py-4 font-black text-slate-400 uppercase tracking-wider text-[10px]">Tanggal</th><th className="px-6 py-4 font-black text-slate-400 uppercase tracking-wider text-[10px]">Keterangan</th><th className="px-6 py-4 text-right font-black text-slate-400 uppercase tracking-wider text-[10px]">Nominal</th></tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                         {viewExpenses.length === 0 ? ( <tr><td colSpan="3" className="text-center py-12 text-slate-400 font-medium">Belum ada data pengeluaran.</td></tr> ) : (
-                           viewExpenses.map(exp => (
-                             <tr key={exp.id}>
-                               <td className="px-6 py-4 text-slate-500">{new Date(exp.date).toLocaleDateString('id-ID')}</td>
-                               <td className="px-6 py-4 font-bold text-slate-900 dark:text-white">{exp.description}</td>
-                               <td className="px-6 py-4 text-right font-black text-rose-500">{formatCurrency(exp.amount)}</td>
-                             </tr>
-                           ))
-                         )}
-                      </tbody>
-                    </table>
+                  <div className="bg-white dark:bg-[#121824] rounded-2xl shadow-card border border-slate-200/60 dark:border-slate-800/80 overflow-hidden p-4">
+                    {viewExpenses.length === 0 ? <p className="text-center text-slate-400 py-6">Belum ada pengeluaran.</p> : viewExpenses.map(exp => (
+                      <div key={exp.id} className="flex justify-between items-center py-3 border-b border-slate-100 dark:border-slate-800 text-xs">
+                        <div><p className="font-bold text-slate-900 dark:text-white">{exp.description}</p><p className="text-[10px] text-slate-400">{new Date(exp.date).toLocaleDateString('id-ID')}</p></div>
+                        <span className="font-black text-rose-500">{formatCurrency(exp.amount)}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
 
-              {/* BRANCHES VIEW */}
+              {/* BRANCHES & USERS VIEW (DISINGKAT AGAR RAPI) */}
               {currentView === 'branches' && isOwner && (
                 <div className="space-y-6 max-w-4xl">
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Manajemen Cabang</h2>
-                    <button onClick={() => setShowAddBranch(true)} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-sm flex items-center cursor-pointer"><i className="ph-bold ph-plus mr-2"></i> Tambah Cabang</button>
+                    <button onClick={() => setShowAddBranch(true)} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-sm cursor-pointer">Tambah Cabang</button>
                   </div>
-                  <div className="bg-white dark:bg-[#121824] rounded-2xl shadow-card dark:shadow-dark-card border border-slate-200/60 dark:border-slate-800/80 overflow-hidden">
-                    <table className="min-w-full text-xs text-left">
-                      <thead className="bg-slate-50 dark:bg-[#182030] border-b border-slate-100 dark:border-slate-800">
-                        <tr><th className="px-6 py-4 font-black text-slate-400 uppercase tracking-wider text-[10px]">ID Cabang</th><th className="px-6 py-4 font-black text-slate-400 uppercase tracking-wider text-[10px]">Nama Cabang</th><th className="px-6 py-4 font-black text-slate-400 uppercase tracking-wider text-[10px]">Lokasi</th><th className="px-6 py-4 text-right font-black text-slate-400 uppercase tracking-wider text-[10px]">Aksi</th></tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                         {branches.length === 0 ? ( <tr><td colSpan="4" className="text-center py-12 text-slate-400 font-medium">Belum ada cabang terdaftar.</td></tr> ) : (
-                           branches.map(b => (
-                             <tr key={b.id}>
-                               <td className="px-6 py-4 text-slate-400 font-mono text-[11px]">{b.id}</td>
-                               <td className="px-6 py-4 font-bold text-slate-900 dark:text-white">{b.name}</td>
-                               <td className="px-6 py-4 text-slate-500">{b.location}</td>
-                               <td className="px-6 py-4 text-right"><button onClick={() => triggerDeleteBranch(b.id)} className="w-7 h-7 bg-rose-500/10 text-rose-500 rounded-lg flex items-center justify-center hover:bg-rose-500/20 inline-flex cursor-pointer"><i className="ph-bold ph-trash"></i></button></td>
-                             </tr>
-                           ))
-                         )}
-                      </tbody>
-                    </table>
+                  <div className="bg-white dark:bg-[#121824] rounded-2xl p-4 border border-slate-200 dark:border-slate-800">
+                    {branches.map(b => <div key={b.id} className="flex justify-between py-2 border-b border-slate-100 dark:border-slate-800 text-xs"><span className="font-bold">{b.name}</span><span className="text-slate-400">{b.location}</span></div>)}
                   </div>
                 </div>
               )}
 
-              {/* USERS VIEW */}
               {currentView === 'users' && isOwner && (
                 <div className="space-y-6 max-w-5xl">
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Manajemen Karyawan</h2>
-                    <button onClick={() => setShowAddUser(true)} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-sm flex items-center cursor-pointer"><i className="ph-bold ph-user-plus mr-2"></i> Tambah Karyawan</button>
+                    <button onClick={() => setShowAddUser(true)} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-sm cursor-pointer">Tambah Karyawan</button>
                   </div>
-                  <div className="bg-white dark:bg-[#121824] rounded-2xl shadow-card dark:shadow-dark-card border border-slate-200/60 dark:border-slate-800/80 overflow-hidden">
-                    <table className="min-w-full text-xs text-left">
-                      <thead className="bg-slate-50 dark:bg-[#182030] border-b border-slate-100 dark:border-slate-800">
-                        <tr><th className="px-6 py-4 font-black text-slate-400 uppercase tracking-wider text-[10px]">Nama & Email</th><th className="px-6 py-4 font-black text-slate-400 uppercase tracking-wider text-[10px]">Peran</th><th className="px-6 py-4 font-black text-slate-400 uppercase tracking-wider text-[10px]">Cabang</th><th className="px-6 py-4 text-right font-black text-slate-400 uppercase tracking-wider text-[10px]">Aksi</th></tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                         {users.length === 0 ? ( <tr><td colSpan="4" className="text-center py-12 text-slate-400 font-medium">Belum ada karyawan terdaftar.</td></tr> ) : (
-                           users.map(u => (
-                             <tr key={u.id}>
-                               <td className="px-6 py-4"><span className="font-bold text-slate-900 dark:text-white block">{u.name}</span><span className="text-[11px] font-medium text-slate-400">{u.email}</span></td>
-                               <td className="px-6 py-4"><span className={`inline-flex items-center px-2.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wide ${u.role === 'OWNER' ? 'bg-blue-600 text-white' : 'bg-slate-500/10 text-slate-400'}`}>{u.role}</span></td>
-                               <td className="px-6 py-4 font-medium text-slate-500">{u.role === 'OWNER' ? '-' : (branches.find(b => b.id === u.branch_id)?.name || 'Cabang Utama')}</td>
-                               <td className="px-6 py-4 text-right"><button onClick={() => triggerDeleteUser(u.id)} disabled={u.id === currentUser.id} className="w-7 h-7 bg-rose-500/10 text-rose-500 rounded-lg flex items-center justify-center hover:bg-rose-500/20 inline-flex disabled:opacity-50 cursor-pointer"><i className="ph-bold ph-trash"></i></button></td>
-                             </tr>
-                           ))
-                         )}
-                      </tbody>
-                    </table>
+                  <div className="bg-white dark:bg-[#121824] rounded-2xl p-4 border border-slate-200 dark:border-slate-800">
+                    {users.map(u => <div key={u.id} className="flex justify-between py-2 border-b border-slate-100 dark:border-slate-800 text-xs"><span className="font-bold">{u.name} ({u.role})</span><span className="text-slate-400">{u.email}</span></div>)}
                   </div>
                 </div>
               )}
 
-              {/* PROFILE & THEME SETTINGS PAGE */}
+              {/* PROFILE SETTINGS */}
               {currentView === 'profile' && (
                 <div className="max-w-xl mx-auto space-y-6">
                   <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mb-6">Pengaturan Profil & Tema</h2>
-                  <form onSubmit={submitProfileUpdate} className="bg-white dark:bg-[#121824] p-6 md:p-8 rounded-2xl shadow-card dark:shadow-dark-card border border-slate-200/60 dark:border-slate-800/80 space-y-6">
-                    <div className="flex flex-col items-center mb-6">
-                      <div className="relative group cursor-pointer" onClick={() => avatarInputRef.current.click()}>
-                        {profileForm.avatar || currentUser?.avatar ? ( <img src={profileForm.avatar || currentUser.avatar} className="w-24 h-24 rounded-full object-cover border-4 border-slate-100 dark:border-slate-800 shadow-sm" alt="Profil" /> ) : ( <div className="w-24 h-24 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-2xl border-4 border-slate-100 shadow-sm">{currentUser?.name?.charAt(0)}</div> )}
-                        <div className="absolute inset-0 bg-slate-950/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><i className="ph-fill ph-camera text-white text-xl"></i></div>
+                  <form onSubmit={submitProfileUpdate} className="bg-white dark:bg-[#121824] p-6 rounded-2xl shadow-card border border-slate-200/60 dark:border-slate-800 space-y-6">
+                    <div className="flex justify-between items-center bg-slate-50 dark:bg-[#182030] p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                      <div>
+                        <h4 className="font-bold text-slate-900 dark:text-white text-xs">Mode Tampilan (Tema)</h4>
+                        <p className="text-[11px] text-slate-400">Pilih terang atau gelap.</p>
                       </div>
-                      <input type="file" accept="image/*" ref={avatarInputRef} onChange={handleAvatarChange} className="hidden" />
-                      <p className="text-[10px] font-extrabold text-slate-400 mt-3 uppercase tracking-widest">Ketuk untuk ubah foto</p>
-                    </div>
-
-                    <div className="space-y-4">
-                      {/* THEME SELECTOR SETTING */}
-                      <div className="bg-slate-50 dark:bg-[#182030] p-4 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                        <div>
-                          <h4 className="font-bold text-slate-900 dark:text-white text-xs">Mode Tampilan (Tema)</h4>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Pilih tema terang atau tema gelap elegan.</p>
-                        </div>
-                        <div className="flex bg-slate-200 dark:bg-slate-900 p-1 rounded-xl">
-                          <button type="button" onClick={() => setThemeMode('light')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center ${themeMode === 'light' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-400 hover:text-slate-200'}`}>
-                            <i className="ph-bold ph-sun mr-1"></i> Terang
-                          </button>
-                          <button type="button" onClick={() => setThemeMode('dark')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center ${themeMode === 'dark' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-slate-200'}`}>
-                            <i className="ph-bold ph-moon mr-1"></i> Gelap
-                          </button>
-                        </div>
-                      </div>
-
-                      <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Nama Lengkap</label><input type="text" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white focus:ring-2 focus:ring-blue-600 outline-none text-xs font-bold" value={profileForm.name} onChange={(e) => setProfileForm({...profileForm, name: e.target.value})} /></div>
-                      <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Email</label><input type="email" disabled className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-[#182030]/50 text-slate-500 font-medium outline-none text-xs cursor-not-allowed" value={currentUser?.email} /></div>
-                      {isOwner && (
-                        <div>
-                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Spreadsheet ID Pribadi</label>
-                          <input type="text" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white font-mono text-xs focus:ring-2 focus:ring-blue-600 outline-none" value={profileForm.spreadsheet_id} onChange={(e) => setProfileForm({...profileForm, spreadsheet_id: e.target.value})} />
-                        </div>
-                      )}
-
-                      <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
-                        <h4 className="font-bold text-slate-900 dark:text-white text-xs">Ganti Kata Sandi (Opsional)</h4>
-                        <div>
-                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Kata Sandi Lama</label>
-                          <input type="password" placeholder="••••••••" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs outline-none" value={profileForm.oldPassword} onChange={(e) => setProfileForm({...profileForm, oldPassword: e.target.value})} />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Kata Sandi Baru</label>
-                          <input type="password" placeholder="••••••••" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs outline-none" value={profileForm.newPassword} onChange={(e) => setProfileForm({...profileForm, newPassword: e.target.value})} />
-                        </div>
+                      <div className="flex bg-slate-200 dark:bg-slate-900 p-1 rounded-xl">
+                        <button type="button" onClick={() => setThemeMode('light')} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${themeMode === 'light' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-400'}`}>Terang</button>
+                        <button type="button" onClick={() => setThemeMode('dark')} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${themeMode === 'dark' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400'}`}>Gelap</button>
                       </div>
                     </div>
-
-                    <div className="mt-6 flex justify-end"><button type="submit" disabled={isLoading} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold text-xs shadow-sm transition disabled:opacity-70 cursor-pointer">{isLoading ? 'Menyimpan...' : 'Simpan Perubahan'}</button></div>
+                    <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Nama Lengkap</label><input type="text" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={profileForm.name} onChange={(e) => setProfileForm({...profileForm, name: e.target.value})} /></div>
+                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold text-xs shadow-md cursor-pointer">Simpan Perubahan</button>
                   </form>
                 </div>
               )}
             </div>
           </main>
+
+          {/* MODAL DETAIL TRANSAKSI KHUSUS MOBILE (SESUAI PERMINTAAN ANDA) */}
+          {selectedDetailTrx && (
+            <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 z-[9999]">
+              <div className="bg-white dark:bg-[#121824] rounded-3xl w-full max-w-sm shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden flex flex-col animate-modal">
+                <div className="p-4 bg-slate-50 dark:bg-[#182030] border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                  <div>
+                    <h3 className="font-extrabold text-slate-900 dark:text-white text-xs uppercase tracking-wider">Detail Transaksi</h3>
+                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">{selectedDetailTrx.id}</p>
+                  </div>
+                  <button onClick={() => setSelectedDetailTrx(null)} className="w-7 h-7 flex items-center justify-center bg-white dark:bg-slate-800 text-slate-500 rounded-full border border-slate-200 dark:border-slate-700 cursor-pointer"><i className="ph-bold ph-x text-xs"></i></button>
+                </div>
+
+                <div className="p-5 space-y-4 modal-scroll text-xs">
+                  <div className="space-y-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Daftar Item</p>
+                    {selectedDetailTrx.items?.map((it, idx) => (
+                      <div key={idx} className="flex justify-between items-center font-medium">
+                        <span className="text-slate-900 dark:text-white">{it.qty}x {it.product_name}</span>
+                        <span className="font-bold text-slate-700 dark:text-slate-300">{formatCurrency(it.qty * it.unit_price)}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {(() => {
+                    let subTotal = 0, cogsTotal = 0;
+                    selectedDetailTrx.items?.forEach(it => {
+                      subTotal += (it.qty * it.unit_price);
+                      cogsTotal += (it.qty * it.unit_cost);
+                    });
+                    const adminFee = Number(selectedDetailTrx.admin_fee || 0);
+                    const grossRevenue = subTotal;
+                    const netIncome = subTotal - cogsTotal - adminFee;
+
+                    return (
+                      <div className="space-y-2 pt-1">
+                        <div className="flex justify-between text-slate-500">
+                          <span>Pendapatan Kotor</span>
+                          <span className="font-bold text-slate-900 dark:text-white">{formatCurrency(grossRevenue)}</span>
+                        </div>
+                        {adminFee > 0 && (
+                          <div className="flex justify-between text-slate-500">
+                            <span>Biaya Potongan / Admin</span>
+                            <span className="font-bold text-rose-500">-{formatCurrency(adminFee)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-slate-500">
+                          <span>Estimasi HPP (Modal)</span>
+                          <span className="font-bold text-rose-500">-{formatCurrency(cogsTotal)}</span>
+                        </div>
+                        <div className="flex justify-between font-black text-sm text-slate-900 dark:text-white pt-3 border-t border-slate-200 dark:border-slate-700">
+                          <span>Pendapatan Bersih (Laba)</span>
+                          <span className="text-emerald-500">{formatCurrency(netIncome)}</span>
+                        </div>
+                        <div className="flex justify-between font-black text-sm text-blue-600 dark:text-blue-400 pt-1">
+                          <span>Total Tagihan</span>
+                          <span>{formatCurrency(selectedDetailTrx.total_amount)}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <div className="p-4 bg-slate-50 dark:bg-[#182030] border-t border-slate-100 dark:border-slate-800 flex gap-2">
+                  <button onClick={() => { const trx = selectedDetailTrx; setSelectedDetailTrx(null); setSelectedReceiptTrx(trx); }} className="flex-1 py-3 bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-white rounded-xl font-bold text-xs flex items-center justify-center cursor-pointer">
+                    <i className="ph-bold ph-receipt mr-1.5"></i> Struk
+                  </button>
+                  <button onClick={() => { const trx = selectedDetailTrx; setSelectedDetailTrx(null); triggerCancelTrx(trx); }} className="flex-1 py-3 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 rounded-xl font-bold text-xs flex items-center justify-center cursor-pointer">
+                    <i className="ph-bold ph-x mr-1.5"></i> Batalkan
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* RECEIPT PREVIEW MODAL */}
+          {selectedReceiptTrx && (
+            <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 z-[9999]">
+              <div className="bg-white dark:bg-[#121824] rounded-3xl w-full max-w-sm shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden flex flex-col max-h-[85vh]">
+                <div className="p-4 bg-slate-50 dark:bg-[#182030] border-b border-slate-100 dark:border-slate-800 flex justify-between items-center no-print shrink-0">
+                  <h3 className="font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider">Pratinjau Struk</h3>
+                  <button onClick={() => setSelectedReceiptTrx(null)} className="w-7 h-7 flex items-center justify-center bg-white dark:bg-slate-800 text-slate-500 rounded-full border border-slate-200 dark:border-slate-700 cursor-pointer"><i className="ph-bold ph-x text-xs"></i></button>
+                </div>
+                
+                <div className="modal-scroll p-4 bg-slate-100 dark:bg-[#0b0f19] flex justify-center overflow-y-auto">
+                  <div ref={receiptRef} id="printable-receipt" className="bg-white p-5 w-[300px] shadow-sm font-mono text-xs text-slate-800 space-y-3 rounded-xl border border-slate-200">
+                    <div className="text-center pb-3 border-b border-dashed border-slate-200">
+                      <h4 className="font-black text-sm uppercase tracking-wider text-slate-900">PRO FINANCE</h4>
+                      <p className="text-[10px] text-slate-500 mt-0.5">{branches.find(b => b.id === selectedReceiptTrx.branch_id)?.name || 'Cabang'}</p>
+                      <p className="text-[10px] text-slate-400 mt-1">ID: {selectedReceiptTrx.id}</p>
+                      <p className="text-[10px] text-slate-400">{new Date(selectedReceiptTrx.created_at).toLocaleString('id-ID')}</p>
+                    </div>
+                    <div className="space-y-2 py-1">
+                      {selectedReceiptTrx.items.map((item, idx) => (
+                        <div key={idx} className="flex justify-between items-start">
+                          <div className="flex-1 pr-2"><p className="font-bold text-slate-900">{item.product_name}</p><p className="text-[10px] text-slate-500">{item.qty} x {formatCurrency(item.unit_price)}</p></div>
+                          <span className="font-bold">{formatCurrency(item.qty * item.unit_price)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="pt-3 border-t border-dashed border-slate-200 space-y-1 text-xs">
+                      {selectedReceiptTrx.admin_fee > 0 && ( <div className="flex justify-between text-slate-500"><span>Biaya Admin</span><span>{formatCurrency(selectedReceiptTrx.admin_fee)}</span></div> )}
+                      <div className="flex justify-between font-black text-sm text-slate-900 pt-1 border-t border-slate-200"><span>TOTAL</span><span>{formatCurrency(selectedReceiptTrx.total_amount)}</span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-white dark:bg-[#121824] border-t border-slate-100 dark:border-slate-800 flex gap-2.5 no-print shrink-0">
+                  <button onClick={() => window.print()} className="flex-1 py-3 px-4 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-xs transition flex items-center justify-center cursor-pointer"><i className="ph-bold ph-printer mr-1.5"></i> Cetak</button>
+                  <button onClick={handleShareReceipt} disabled={isGeneratingImage} className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs transition flex items-center justify-center cursor-pointer">{isGeneratingImage ? <i className="ph ph-spinner animate-spin mr-1.5"></i> : <i className="ph-bold ph-share-network mr-1.5"></i>} Bagikan</button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* DIALOG MODAL */}
           {appDialog.isOpen && (
@@ -1227,17 +939,6 @@
                     <button onClick={() => { appDialog.onConfirm(appDialog.type === 'prompt' ? appDialog.promptValue : null); setAppDialog({...appDialog, isOpen: false, promptValue: ''}); }} className="flex-1 py-3 px-4 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-md cursor-pointer">Konfirmasi</button>
                   </div>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* STORE CREATED MODAL */}
-          {newStoreModal.isOpen && (
-            <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999]">
-              <div className="bg-white dark:bg-[#121824] rounded-3xl w-full max-w-md shadow-2xl animate-modal border border-slate-100 dark:border-slate-800 p-6 text-center">
-                <h3 className="text-lg font-extrabold text-slate-900 dark:text-white mb-2">Organisasi Baru Dibuat!</h3>
-                <input type="text" readOnly className="w-full px-3 py-2 bg-slate-50 dark:bg-[#182030] dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] font-mono text-center mb-6 select-all" value={newStoreModal.url} />
-                <button onClick={() => setNewStoreModal({ isOpen: false, url: '' })} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold text-xs cursor-pointer">Tutup</button>
               </div>
             </div>
           )}
@@ -1274,158 +975,19 @@
             </div>
           )}
 
-          {/* RECEIPT PREVIEW MODAL */}
-          {selectedReceiptTrx && (
-            <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999]">
-              <div className="bg-white dark:bg-[#121824] rounded-3xl w-full max-w-sm shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden flex flex-col max-h-[90vh]">
-                <div className="p-4 bg-slate-50 dark:bg-[#182030] border-b border-slate-100 dark:border-slate-800 flex justify-between items-center no-print">
-                  <h3 className="font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider">Pratinjau Struk</h3>
-                  <button onClick={() => setSelectedReceiptTrx(null)} className="w-7 h-7 flex items-center justify-center bg-white dark:bg-slate-800 text-slate-500 rounded-full border border-slate-200 dark:border-slate-700 cursor-pointer"><i className="ph-bold ph-x text-xs"></i></button>
-                </div>
-                <div className="p-6 overflow-y-auto flex-1 bg-slate-100 dark:bg-[#0b0f19] flex justify-center">
-                  <div ref={receiptRef} id="printable-receipt" className="bg-white p-6 w-[320px] shadow-sm font-mono text-xs text-slate-800 space-y-3 rounded-xl border border-slate-200">
-                    <div className="text-center pb-3 border-b border-dashed border-slate-200">
-                      <h4 className="font-black text-sm uppercase tracking-wider text-slate-900">PRO FINANCE</h4>
-                      <p className="text-[10px] text-slate-500 mt-0.5">{branches.find(b => b.id === selectedReceiptTrx.branch_id)?.name || 'Cabang'}</p>
-                      <p className="text-[10px] text-slate-400 mt-1">ID: {selectedReceiptTrx.id}</p>
-                      <p className="text-[10px] text-slate-400">{new Date(selectedReceiptTrx.created_at).toLocaleString('id-ID')}</p>
-                    </div>
-                    <div className="space-y-2 py-1">
-                      {selectedReceiptTrx.items.map((item, idx) => (
-                        <div key={idx} className="flex justify-between items-start">
-                          <div className="flex-1 pr-2"><p className="font-bold text-slate-900">{item.product_name}</p><p className="text-[10px] text-slate-500">{item.qty} x {formatCurrency(item.unit_price)}</p></div>
-                          <span className="font-bold">{formatCurrency(item.qty * item.unit_price)}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="pt-3 border-t border-dashed border-slate-200 space-y-1 text-xs">
-                      {selectedReceiptTrx.admin_fee > 0 && ( <div className="flex justify-between text-slate-500"><span>Biaya Admin</span><span>{formatCurrency(selectedReceiptTrx.admin_fee)}</span></div> )}
-                      <div className="flex justify-between font-black text-sm text-slate-900 pt-1 border-t border-slate-200"><span>TOTAL</span><span>{formatCurrency(selectedReceiptTrx.total_amount)}</span></div>
-                    </div>
-                  </div>
-                </div>
-                <div className="p-4 bg-white dark:bg-[#121824] border-t border-slate-100 dark:border-slate-800 flex gap-2.5 no-print">
-                  <button onClick={() => window.print()} className="flex-1 py-3 px-4 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-xs transition flex items-center justify-center cursor-pointer"><i className="ph-bold ph-printer mr-1.5"></i> Cetak</button>
-                  <button onClick={handleShareReceipt} disabled={isGeneratingImage} className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs transition flex items-center justify-center cursor-pointer">{isGeneratingImage ? <i className="ph ph-spinner animate-spin mr-1.5"></i> : <i className="ph-bold ph-share-network mr-1.5"></i>} Bagikan</button>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* ADD PRODUCT MODAL */}
           {showAddProduct && (
             <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999]">
               <div className="bg-white dark:bg-[#121824] p-6 rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 max-h-[90vh] overflow-y-auto">
-                <div className="flex justify-between items-center mb-5"><h3 className="text-lg font-extrabold text-slate-900 dark:text-white">Produk Baru / Varian</h3><button onClick={() => setShowAddProduct(false)} className="w-7 h-7 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-full cursor-pointer"><i className="ph-bold ph-x text-xs"></i></button></div>
+                <div className="flex justify-between items-center mb-5"><h3 className="text-lg font-extrabold text-slate-900 dark:text-white">Produk Baru</h3><button onClick={() => setShowAddProduct(false)} className="w-7 h-7 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-full cursor-pointer"><i className="ph-bold ph-x text-xs"></i></button></div>
                 <form onSubmit={submitProduct} className="space-y-3.5">
                   <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Nama Produk</label><input type="text" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newProduct.name} onChange={(e)=>setNewProduct({...newProduct, name: e.target.value})} /></div>
-                  
-                  {/* PERBAIKAN 4: Tambah Pilihan Cabang di Form Produk */}
-                  {isOwner && (
-                    <div>
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Tersedia di Cabang</label>
-                      <select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold cursor-pointer" value={newProduct.branch_id} onChange={(e)=>setNewProduct({...newProduct, branch_id: e.target.value})}>
-                        <option value="ALL">Semua Cabang (Global)</option>
-                        {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                      </select>
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Produk Master (Opsional untuk Varian)</label>
-                    <select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold cursor-pointer" value={newProduct.master_id} onChange={(e)=>setNewProduct({...newProduct, master_id: e.target.value})}>
-                      <option value="">-- Produk Mandiri (Bukan Varian) --</option>
-                      {filteredProducts.filter(p => !p.master_id).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                  </div>
-
-                  {newProduct.master_id ? (
-                    <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Yield / Isi per Master</label><input type="number" step="0.1" min="0.1" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newProduct.yield_per_master} onChange={(e)=>setNewProduct({...newProduct, yield_per_master: e.target.value})} /></div>
-                  ) : (
-                    <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Stok Awal</label><input type="number" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newProduct.stock} onChange={(e)=>setNewProduct({...newProduct, stock: e.target.value})} /></div>
-                  )}
-
+                  <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Stok Awal</label><input type="number" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newProduct.stock} onChange={(e)=>setNewProduct({...newProduct, stock: e.target.value})} /></div>
                   <div className="grid grid-cols-2 gap-3">
                     <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Modal (Rp)</label><input type="number" required className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newProduct.purchase_price} onChange={(e)=>setNewProduct({...newProduct, purchase_price: e.target.value})} /></div>
                     <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Jual (Rp)</label><input type="number" required className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newProduct.selling_price} onChange={(e)=>setNewProduct({...newProduct, selling_price: e.target.value})} /></div>
                   </div>
                   <button type="submit" className="w-full mt-3 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-md hover:bg-blue-700 transition cursor-pointer">Simpan ke Katalog</button>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {/* EDIT PRODUCT MODAL */}
-          {editingProduct && (
-            <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999]">
-              <div className="bg-white dark:bg-[#121824] p-6 rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 max-h-[90vh] overflow-y-auto">
-                <div className="flex justify-between items-center mb-5"><h3 className="text-lg font-extrabold text-slate-900 dark:text-white">Edit Produk / Varian</h3><button onClick={() => setEditingProduct(null)} className="w-7 h-7 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-full cursor-pointer"><i className="ph-bold ph-x text-xs"></i></button></div>
-                <form onSubmit={submitEditProduct} className="space-y-3.5">
-                  <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Nama</label><input type="text" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingProduct.name} onChange={(e)=>setEditingProduct({...editingProduct, name: e.target.value})} /></div>
-                  
-                  {/* PERBAIKAN 5: Tambah Pilihan Cabang di Form Edit Produk */}
-                  {isOwner && (
-                    <div>
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Tersedia di Cabang</label>
-                      <select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold cursor-pointer" value={editingProduct.branch_id || 'ALL'} onChange={(e)=>setEditingProduct({...editingProduct, branch_id: e.target.value})}>
-                        <option value="ALL">Semua Cabang (Global)</option>
-                        {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                      </select>
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Produk Master</label>
-                    <select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold cursor-pointer" value={editingProduct.master_id || ''} onChange={(e)=>setEditingProduct({...editingProduct, master_id: e.target.value || null})}>
-                      <option value="">-- Produk Mandiri --</option>
-                      {filteredProducts.filter(p => p.id !== editingProduct.id && !p.master_id).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                  </div>
-
-                  {editingProduct.master_id ? (
-                    <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Yield per Master</label><input type="number" step="0.1" min="0.1" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingProduct.yield_per_master || 1} onChange={(e)=>setEditingProduct({...editingProduct, yield_per_master: e.target.value})} /></div>
-                  ) : (
-                    <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Stok</label><input type="number" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingProduct.stock} onChange={(e)=>setEditingProduct({...editingProduct, stock: e.target.value})} /></div>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Modal</label><input type="number" required className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingProduct.purchase_price} onChange={(e)=>setEditingProduct({...editingProduct, purchase_price: e.target.value})} /></div>
-                    <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Jual</label><input type="number" required className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingProduct.selling_price} onChange={(e)=>setEditingProduct({...editingProduct, selling_price: e.target.value})} /></div>
-                  </div>
-                  <button type="submit" className="w-full mt-3 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-md hover:bg-blue-700 transition cursor-pointer">Simpan Perubahan</button>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {/* ADD BRANCH MODAL */}
-          {showAddBranch && (
-            <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999]">
-              <div className="bg-white dark:bg-[#121824] p-6 rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800">
-                <div className="flex justify-between items-center mb-5"><h3 className="text-lg font-extrabold text-slate-900 dark:text-white">Tambah Cabang</h3><button onClick={() => setShowAddBranch(false)} className="w-7 h-7 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-full cursor-pointer"><i className="ph-bold ph-x text-xs"></i></button></div>
-                <form onSubmit={submitBranch} className="space-y-3.5">
-                  <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Nama Cabang</label><input type="text" required placeholder="Cth: Cabang Selatan" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newBranch.name} onChange={(e)=>setNewBranch({...newBranch, name: e.target.value})} /></div>
-                  <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Lokasi</label><input type="text" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newBranch.location} onChange={(e)=>setNewBranch({...newBranch, location: e.target.value})} /></div>
-                  <button type="submit" className="w-full mt-3 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-md hover:bg-blue-700 transition cursor-pointer">Simpan Cabang</button>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {/* ADD USER MODAL */}
-          {showAddUser && (
-            <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999]">
-              <div className="bg-white dark:bg-[#121824] p-6 rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800">
-                <div className="flex justify-between items-center mb-5"><h3 className="text-lg font-extrabold text-slate-900 dark:text-white">Tambah Karyawan</h3><button onClick={() => setShowAddUser(false)} className="w-7 h-7 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-full cursor-pointer"><i className="ph-bold ph-x text-xs"></i></button></div>
-                <form onSubmit={submitUser} className="space-y-3.5">
-                  <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Nama</label><input type="text" required className="w-full px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newUserForm.name} onChange={(e)=>setNewUserForm({...newUserForm, name: e.target.value})} /></div>
-                  <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Email</label><input type="email" required className="w-full px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newUserForm.email} onChange={(e)=>setNewUserForm({...newUserForm, email: e.target.value})} /></div>
-                  <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Sandi</label><input type="text" required placeholder="Min 6 Karakter" className="w-full px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newUserForm.password} onChange={(e)=>setNewUserForm({...newUserForm, password: e.target.value})} /></div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Peran</label><select className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold cursor-pointer" value={newUserForm.role} onChange={(e)=>setNewUserForm({...newUserForm, role: e.target.value})}><option value="CASHIER">Kasir</option><option value="OWNER">Owner</option></select></div>
-                    <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Cabang</label><select required={newUserForm.role !== 'OWNER'} disabled={newUserForm.role === 'OWNER'} className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold disabled:bg-slate-100 cursor-pointer" value={newUserForm.branch_id} onChange={(e)=>setNewUserForm({...newUserForm, branch_id: e.target.value})}><option value="">- Pilih -</option>{branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
-                  </div>
-                  <button type="submit" disabled={isLoading} className="w-full mt-3 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-md hover:bg-blue-700 transition disabled:opacity-50 cursor-pointer">{isLoading ? 'Menyimpan...' : 'Simpan Karyawan'}</button>
                 </form>
               </div>
             </div>
