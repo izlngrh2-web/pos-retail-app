@@ -198,6 +198,12 @@
           const resultExp = await resExp.json();
           if (resultExp.status === 'success') setExpenses(resultExp.data);
 
+          const resNotif = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'get_notifications' })) });
+          const resultNotif = await resNotif.json();
+          if (resultNotif.status === 'success' && resultNotif.data) {
+            setNotifications(resultNotif.data);
+          }
+
           if (currentUser?.role === 'OWNER') {
             const resUsers = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'get_users' })) });
             const resultUsers = await resUsers.json();
@@ -220,7 +226,15 @@
         }
       }, [currentUser]);
 
-      React.useEffect(() => { if (isAuthenticated && currentUser?.spreadsheet_id) loadDataFromServer(); }, [isAuthenticated, currentUser?.spreadsheet_id]);
+      React.useEffect(() => { 
+        if (isAuthenticated && currentUser?.spreadsheet_id) {
+          loadDataFromServer();
+          const interval = setInterval(() => {
+            loadDataFromServer();
+          }, 5000);
+          return () => clearInterval(interval);
+        } 
+      }, [isAuthenticated, currentUser?.spreadsheet_id]);
 
       React.useEffect(() => { localStorage.setItem('pos_products', JSON.stringify(products)); }, [products]);
       React.useEffect(() => { localStorage.setItem('pos_transactions', JSON.stringify(transactions)); }, [transactions]);
@@ -349,41 +363,83 @@
       const viewTransactions = (isOwner ? transactions : transactions.filter(t => t.branch_id === dataViewBranchId)).filter(t => t.status === 'COMPLETED');
       const viewExpenses = isOwner ? expenses : expenses.filter(e => e.branch_id === dataViewBranchId);
 
-      const filteredTransactionsForDash = React.useMemo(() => {
+      const getFilteredTransactionsForPeriod = (year, month, mode) => {
         return transactions.filter(t => {
           if (t.status !== 'COMPLETED') return false;
           if (activeBranchId && t.branch_id !== activeBranchId) return false;
           const d = new Date(t.created_at);
-          const matchYear = d.getFullYear() === Number(selectedYear);
-          if (dashboardFilterMode === 'yearly') return matchYear;
-          return matchYear && d.getMonth() === Number(selectedMonth);
+          const matchYear = d.getFullYear() === Number(year);
+          if (mode === 'yearly') return matchYear;
+          return matchYear && d.getMonth() === Number(month);
         });
-      }, [transactions, activeBranchId, dashboardFilterMode, selectedMonth, selectedYear]);
+      };
 
-      const filteredExpensesForDash = React.useMemo(() => {
+      const getFilteredExpensesForPeriod = (year, month, mode) => {
         return expenses.filter(e => {
           if (activeBranchId && e.branch_id !== activeBranchId) return false;
           const d = new Date(e.date);
-          const matchYear = d.getFullYear() === Number(selectedYear);
-          if (dashboardFilterMode === 'yearly') return matchYear;
-          return matchYear && d.getMonth() === Number(selectedMonth);
+          const matchYear = d.getFullYear() === Number(year);
+          if (mode === 'yearly') return matchYear;
+          return matchYear && d.getMonth() === Number(month);
         });
+      };
+
+      const filteredTransactionsForDash = React.useMemo(() => {
+        return getFilteredTransactionsForPeriod(selectedYear, selectedMonth, dashboardFilterMode);
+      }, [transactions, activeBranchId, dashboardFilterMode, selectedMonth, selectedYear]);
+
+      const filteredExpensesForDash = React.useMemo(() => {
+        return getFilteredExpensesForPeriod(selectedYear, selectedMonth, dashboardFilterMode);
       }, [expenses, activeBranchId, dashboardFilterMode, selectedMonth, selectedYear]);
 
+      // Data periode sebelumnya untuk perbandingan persentase kenaikan/penurunan
+      const prevPeriodData = React.useMemo(() => {
+        let pYear = Number(selectedYear);
+        let pMonth = Number(selectedMonth);
+        if (dashboardFilterMode === 'monthly') {
+          pMonth -= 1;
+          if (pMonth < 0) { pMonth = 11; pYear -= 1; }
+        } else {
+          pYear -= 1;
+        }
+        const pTrx = getFilteredTransactionsForPeriod(pYear, pMonth, dashboardFilterMode);
+        const pExp = getFilteredExpensesForPeriod(pYear, pMonth, dashboardFilterMode);
+
+        let t_sales = 0, g_rev = 0, admin_f = 0, cogs_val = 0, op_exp = 0;
+        pTrx.forEach(t => {
+          if (t.type === 'SALE') {
+            t_sales += t.total_amount;
+            admin_f += (Number(t.admin_fee) || 0);
+            t.items.forEach(i => {
+              g_rev += (i.qty * i.unit_price);
+              cogs_val += (i.qty * i.unit_cost);
+            });
+          }
+        });
+        op_exp = pExp.reduce((sum, e) => sum + Number(e.amount), 0);
+        const adj_gross = g_rev - admin_f;
+        const net_p = adj_gross - cogs_val - op_exp;
+        const cost_admin_total = cogs_val + admin_f;
+
+        return { total_sales: t_sales, gross_revenue: g_rev, cost_admin: cost_admin_total, operational_expenses: op_exp, net_profit: net_p };
+      }, [transactions, expenses, activeBranchId, dashboardFilterMode, selectedMonth, selectedYear]);
+
       const dashStatsExt = React.useMemo(() => {
-        let total_sales = 0, cogs = 0, admin_fee = 0, total_purchases = 0, order_count = 0;
+        let total_sales = 0, gross_revenue = 0, cogs = 0, admin_fee = 0, total_purchases = 0, order_count = 0;
         const topSalesMap = {};
 
         filteredTransactionsForDash.forEach(t => {
             if (t.type === 'SALE') {
-                total_sales += t.total_amount;
+                total_sales += t.total_amount; // Total transaksi murni (qty * unit_price)
                 admin_fee += (Number(t.admin_fee) || 0);
                 order_count++;
                 t.items.forEach(item => { 
+                    const itemTotal = item.qty * item.unit_price;
+                    gross_revenue += itemTotal;
                     cogs += (item.qty * item.unit_cost);
                     if(!topSalesMap[item.product_name]) topSalesMap[item.product_name] = { name: item.product_name, qty: 0, total: 0 };
                     topSalesMap[item.product_name].qty += item.qty;
-                    topSalesMap[item.product_name].total += (item.qty * item.unit_price);
+                    topSalesMap[item.product_name].total += itemTotal;
                 });
             } else if (t.type === 'PURCHASE') {
                 total_purchases += t.total_amount;
@@ -391,14 +447,44 @@
         });
         
         const total_operational_expenses = filteredExpensesForDash.reduce((sum, exp) => sum + Number(exp.amount), 0);
-        const net_profit = total_sales - admin_fee - cogs - total_operational_expenses;
+        const adjusted_gross = gross_revenue - admin_fee; // Pendapatan kotor setelah dikurangi biaya admin
+        const net_profit = adjusted_gross - cogs - total_operational_expenses;
+        const cost_admin_total = cogs + admin_fee;
         const avg_order = order_count > 0 ? (total_sales / order_count) : 0;
         const topProducts = Object.values(topSalesMap).sort((a,b) => b.total - a.total).slice(0, 5);
         const maxProdSales = topProducts.length > 0 ? topProducts[0].total : 1;
         const recentTrx = [...filteredTransactionsForDash].sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5);
 
-        return { total_sales, cogs, admin_fee, total_operational_expenses, total_purchases, net_profit, order_count, avg_order, topProducts, maxProdSales, recentTrx };
-      }, [filteredTransactionsForDash, filteredExpensesForDash]);
+        // Hitung persentase perubahan dari periode lalu
+        const calcDiff = (curr, prev) => {
+          if (prev === 0) return curr > 0 ? 100 : 0;
+          return ((curr - prev) / prev) * 100;
+        };
+
+        const diffs = {
+          total_sales: calcDiff(total_sales, prevPeriodData.total_sales),
+          gross_revenue: calcDiff(adjusted_gross, prevPeriodData.gross_revenue - (prevPeriodData.gross_revenue > 0 ? 0 : 0)), // gross revenue perbandingan
+          cost_admin: calcDiff(cost_admin_total, prevPeriodData.cost_admin),
+          operational_expenses: calcDiff(total_operational_expenses, prevPeriodData.operational_expenses),
+          net_profit: calcDiff(net_profit, prevPeriodData.net_profit)
+        };
+
+        return { total_sales, gross_revenue, adjusted_gross, cogs, admin_fee, total_operational_expenses, total_purchases, net_profit, cost_admin_total, order_count, avg_order, topProducts, maxProdSales, recentTrx, diffs };
+      }, [filteredTransactionsForDash, filteredExpensesForDash, prevPeriodData]);
+
+      const renderDiffBadge = (diffVal, invertColor = false) => {
+        const isPositive = diffVal >= 0;
+        // Untuk operational expenses / cost, kenaikan bisa jadi kurang baik, tapi kita gunakan warna standar atau invert
+        const colorClass = isPositive 
+          ? (invertColor ? 'text-rose-500 bg-rose-500/10' : 'text-emerald-500 bg-emerald-500/10')
+          : (invertColor ? 'text-emerald-500 bg-emerald-500/10' : 'text-rose-500 bg-rose-500/10');
+        const icon = isPositive ? 'ph-bold ph-arrow-up' : 'ph-bold ph-arrow-down';
+        return (
+          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-extrabold ml-2 ${colorClass}`}>
+            <i className={`${icon} mr-0.5`}></i>{Math.abs(diffVal).toFixed(1)}%
+          </span>
+        );
+      };
 
       const dailyChartData = React.useMemo(() => {
         const daysMap = {}; let maxDays = 31;
@@ -483,9 +569,9 @@
         const currentAvailable = getAvailableStock(prod, products);
         if (newTrx.type === 'SALE' && currentAvailable < qty) return showToast('Stok tidak mencukupi!', 'error');
 
-        const baseAmt = newTrx.type === 'SALE' ? (prod.selling_price * qty) : (prod.purchase_price * qty);
+        // TOTAL TRANSAKSI MURNI: harga barang dikali jumlah pembelian (tanpa ditambah/dikurangi biaya admin)
+        const totalAmt = newTrx.type === 'SALE' ? (prod.selling_price * qty) : (prod.purchase_price * qty);
         const fee = newTrx.type === 'SALE' ? Number(newTrx.admin_fee || 0) : 0;
-        const totalAmt = newTrx.type === 'SALE' ? (baseAmt - fee) : (baseAmt + fee);
         
         const targetBranchId = isOwner ? (newTrx.branch_id || currentUser.branch_id || 'b1') : (currentUser.branch_id || 'b1');
 
@@ -533,9 +619,9 @@
           }
         }
 
-        const baseAmt = editingTrx.type === 'SALE' ? (prod.selling_price * qty) : (prod.purchase_price * qty);
+        // TOTAL TRANSAKSI MURNI: harga barang dikali jumlah pembelian
+        const totalAmt = editingTrx.type === 'SALE' ? (prod.selling_price * qty) : (prod.purchase_price * qty);
         const fee = editingTrx.type === 'SALE' ? Number(editingTrx.admin_fee || 0) : 0;
-        const totalAmt = editingTrx.type === 'SALE' ? (baseAmt - fee) : (baseAmt + fee);
 
         let targetId = prod.id;
         let consumedQty = qty;
@@ -678,6 +764,19 @@
             };
             setNotifications([newNotif, ...notifications]);
             showToast('Permintaan pembatalan dikirim ke Owner untuk persetujuan.');
+
+            try {
+              await fetch(SCRIPT_URL, { 
+                method: 'POST', 
+                body: JSON.stringify(getPayloadWithAuth({ action: 'add_notification', notification: newNotif })) 
+              });
+              await fetch(SCRIPT_URL, { 
+                method: 'POST', 
+                body: JSON.stringify(getPayloadWithAuth({ action: 'update_transaction', transaction: { ...trx, status: 'PENDING_CANCEL', cancel_reason: reason } })) 
+              });
+            } catch (err) {
+              console.error("Gagal menyinkronkan permintaan pembatalan", err);
+            }
           }
         }});
       };
@@ -715,6 +814,7 @@
 
         try {
           await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'cancel_transaction', trxId: trxId, reason: reason })) });
+          await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'add_notification', notification: approveNotif })) });
           await loadDataFromServer();
         } catch (err) {
           showToast('Gagal menyinkronkan pembatalan ke server.', 'error');
@@ -723,13 +823,25 @@
 
       const handleApproveCancel = async (notif) => {
         await executeCancellation(notif.trx_id, notif.reason);
-        setNotifications(notifications.map(n => n.id === notif.id ? { ...n, is_read: true, handled: true } : n));
+        const updatedNotifs = notifications.map(n => n.id === notif.id ? { ...n, is_read: true, handled: true } : n);
+        setNotifications(updatedNotifs);
+        try {
+          await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'update_notification', notification: { ...notif, is_read: true, handled: true } })) });
+        } catch(e) {}
       };
 
-      const handleRejectCancel = (notif) => {
+      const handleRejectCancel = async (notif) => {
         setTransactions(transactions.map(t => t.id === notif.trx_id ? { ...t, status: 'COMPLETED' } : t));
-        setNotifications(notifications.map(n => n.id === notif.id ? { ...n, is_read: true, handled: true } : n));
+        const updatedNotifs = notifications.map(n => n.id === notif.id ? { ...n, is_read: true, handled: true } : n);
+        setNotifications(updatedNotifs);
         showToast('Permintaan pembatalan ditolak.');
+        try {
+          const targetTrx = transactions.find(t => t.id === notif.trx_id);
+          if (targetTrx) {
+            await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'update_transaction', transaction: { ...targetTrx, status: 'COMPLETED' } })) });
+          }
+          await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'update_notification', notification: { ...notif, is_read: true, handled: true } })) });
+        } catch(e) {}
       };
 
       const handleShareReceipt = async () => {
@@ -941,22 +1053,46 @@
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-white dark:bg-[#121824] p-6 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Penjualan</p>
-                      <p className="text-2xl font-black text-slate-900 dark:text-white">{formatCurrency(dashStatsExt.total_sales)}</p>
+                  {/* Dashboard Metrics Grid termasuk Pendapatan Kotor dan persentase perbandingan bulan lalu */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div className="bg-white dark:bg-[#121824] p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card">
+                      <div className="flex justify-between items-start">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Penjualan</p>
+                        {renderDiffBadge(dashStatsExt.diffs.total_sales)}
+                      </div>
+                      <p className="text-xl font-black text-slate-900 dark:text-white mt-1">{formatCurrency(dashStatsExt.total_sales)}</p>
                     </div>
-                    <div className="bg-white dark:bg-[#121824] p-6 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">HPP & Biaya Admin</p>
-                      <p className="text-2xl font-black text-rose-500">{formatCurrency(dashStatsExt.cogs + dashStatsExt.admin_fee)}</p>
+
+                    <div className="bg-white dark:bg-[#121824] p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card">
+                      <div className="flex justify-between items-start">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Pendapatan Kotor</p>
+                        {renderDiffBadge(dashStatsExt.diffs.gross_revenue)}
+                      </div>
+                      <p className="text-xl font-black text-blue-500 mt-1">{formatCurrency(dashStatsExt.adjusted_gross)}</p>
                     </div>
-                    <div className="bg-white dark:bg-[#121824] p-6 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Biaya Operasional</p>
-                      <p className="text-2xl font-black text-amber-500">{formatCurrency(dashStatsExt.total_operational_expenses)}</p>
+
+                    <div className="bg-white dark:bg-[#121824] p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card">
+                      <div className="flex justify-between items-start">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">HPP & Biaya Admin</p>
+                        {renderDiffBadge(dashStatsExt.diffs.cost_admin, true)}
+                      </div>
+                      <p className="text-xl font-black text-rose-500 mt-1">{formatCurrency(dashStatsExt.cost_admin_total)}</p>
                     </div>
-                    <div className="bg-blue-600 text-white p-6 rounded-2xl shadow-lg shadow-blue-500/20">
-                      <p className="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-1">Laba Bersih</p>
-                      <p className="text-2xl font-black">{formatCurrency(dashStatsExt.net_profit)}</p>
+
+                    <div className="bg-white dark:bg-[#121824] p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card">
+                      <div className="flex justify-between items-start">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Biaya Operasional</p>
+                        {renderDiffBadge(dashStatsExt.diffs.operational_expenses, true)}
+                      </div>
+                      <p className="text-xl font-black text-amber-500 mt-1">{formatCurrency(dashStatsExt.total_operational_expenses)}</p>
+                    </div>
+
+                    <div className="bg-blue-600 text-white p-5 rounded-2xl shadow-lg shadow-blue-500/20">
+                      <div className="flex justify-between items-start">
+                        <p className="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-1">Laba Bersih</p>
+                        {renderDiffBadge(dashStatsExt.diffs.net_profit)}
+                      </div>
+                      <p className="text-xl font-black mt-1">{formatCurrency(dashStatsExt.net_profit)}</p>
                     </div>
                   </div>
 
@@ -1057,7 +1193,13 @@
                 <div className="space-y-6 max-w-3xl">
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Notifikasi Sistem & Persetujuan</h2>
-                    <button onClick={() => setNotifications(notifications.map(n => ({...n, is_read: true})))} className="text-xs font-bold text-blue-500 hover:underline cursor-pointer">Tandai semua dibaca</button>
+                    <button onClick={async () => {
+                      const updated = notifications.map(n => ({...n, is_read: true}));
+                      setNotifications(updated);
+                      try {
+                        await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'mark_all_notifications_read' })) });
+                      } catch(e) {}
+                    }} className="text-xs font-bold text-blue-500 hover:underline cursor-pointer">Tandai semua dibaca</button>
                   </div>
                   <div className="space-y-3">
                     {notifications.length === 0 ? (
