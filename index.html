@@ -753,6 +753,7 @@
               message: `Kasir ${currentUser.name} meminta pembatalan transaksi #${trx.id} (${formatCurrency(trx.total_amount)}). Alasan: ${reason}`,
               created_at: new Date().toISOString(),
               is_read: false,
+              handled: false,
               type: 'CANCEL_REQUEST',
               trx_id: trx.id,
               reason: reason
@@ -801,7 +802,8 @@
           title: 'Transaksi Dibatalkan',
           message: `Transaksi #${trxId} telah resmi dibatalkan.`,
           created_at: new Date().toISOString(),
-          is_read: false,
+          is_read: true,
+          handled: true,
           type: 'INFO'
         };
         setNotifications([approveNotif, ...notifications]);
@@ -822,6 +824,7 @@
         setNotifications(updatedNotifs);
         try {
           await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'update_notification', notification: { ...notif, is_read: true, handled: true } })) });
+          await loadDataFromServer();
         } catch(e) {}
       };
 
@@ -836,6 +839,7 @@
             await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'update_transaction', transaction: { ...targetTrx, status: 'COMPLETED' } })) });
           }
           await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'update_notification', notification: { ...notif, is_read: true, handled: true } })) });
+          await loadDataFromServer();
         } catch(e) {}
       };
 
