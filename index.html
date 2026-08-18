@@ -391,7 +391,6 @@
         });
         
         const total_operational_expenses = filteredExpensesForDash.reduce((sum, exp) => sum + Number(exp.amount), 0);
-        // Perbaikan: net_profit disesuaikan: total_sales dikurangi admin_fee, cogs, dan operational expenses
         const net_profit = total_sales - admin_fee - cogs - total_operational_expenses;
         const avg_order = order_count > 0 ? (total_sales / order_count) : 0;
         const topProducts = Object.values(topSalesMap).sort((a,b) => b.total - a.total).slice(0, 5);
@@ -486,7 +485,9 @@
 
         const baseAmt = newTrx.type === 'SALE' ? (prod.selling_price * qty) : (prod.purchase_price * qty);
         const fee = newTrx.type === 'SALE' ? Number(newTrx.admin_fee || 0) : 0;
-        // Penyesuaian: Total Pembayaran / Pendapatan Kotor dikurangi biaya admin jika penjualan
+        
+        // PERUBAHAN UTAMA: Total Pembayaran (Total yang dibayar pembeli / masuk kasir) 
+        // adalah harga dikurangi biaya admin (karena biaya admin ditanggung owner)
         const totalAmt = newTrx.type === 'SALE' ? (baseAmt - fee) : (baseAmt + fee);
         
         const trx = { id: 'TRX-' + Date.now().toString().slice(-6), branch_id: prod.branch_id === 'ALL' ? (currentUser.branch_id || 'b1') : prod.branch_id, user_id: currentUser.id, type: newTrx.type, total_amount: totalAmt, admin_fee: fee, status: 'COMPLETED', created_at: new Date().toISOString(), items: [{ product_id: prod.id, qty: qty, unit_price: prod.selling_price, unit_cost: prod.purchase_price, product_name: prod.name }] };
@@ -1231,7 +1232,6 @@
             </div>
           </main>
 
-          {/* DETAIL TRANSACTION MODAL (DIPERBAIKI: Pendapatan Kotor dikurangi Biaya Admin) */}
           {selectedDetailTrx && (
             <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999]">
               <div className="bg-white dark:bg-[#121824] rounded-3xl w-full max-w-md shadow-2xl animate-modal border border-slate-100 dark:border-slate-800 p-6 space-y-4">
@@ -1264,9 +1264,7 @@
                     const grossRevenue = selectedDetailTrx.items?.reduce((acc, i) => acc + (i.qty * i.unit_price), 0) || selectedDetailTrx.total_amount;
                     const adminFee = Number(selectedDetailTrx.admin_fee || 0);
                     const totalCogs = selectedDetailTrx.items?.reduce((acc, i) => acc + (i.qty * i.unit_cost), 0) || 0;
-                    // Pendapatan Kotor = Total Harga Jual Item - Biaya Admin
                     const adjustedGross = grossRevenue - adminFee;
-                    // Pendapatan Bersih (Laba) = Pendapatan Kotor - HPP (Modal)
                     const netProfit = adjustedGross - totalCogs;
                     const finalPayment = selectedDetailTrx.total_amount;
 
