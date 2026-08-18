@@ -515,7 +515,6 @@
         if (!prod) return showToast('Pilih produk!', 'error');
         const qty = Number(editingTrx.qty);
 
-        // Ambil transaksi lama untuk mengembalikan stok sebelumnya terlebih dahulu
         const oldTrx = transactions.find(t => t.id === editingTrx.id);
         if (oldTrx && oldTrx.items && oldTrx.items.length > 0) {
           const oldItem = oldTrx.items[0];
