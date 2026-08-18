@@ -392,7 +392,6 @@
         return getFilteredExpensesForPeriod(selectedYear, selectedMonth, dashboardFilterMode);
       }, [expenses, activeBranchId, dashboardFilterMode, selectedMonth, selectedYear]);
 
-      // Data periode sebelumnya untuk perbandingan persentase kenaikan/penurunan
       const prevPeriodData = React.useMemo(() => {
         let pYear = Number(selectedYear);
         let pMonth = Number(selectedMonth);
@@ -430,7 +429,7 @@
 
         filteredTransactionsForDash.forEach(t => {
             if (t.type === 'SALE') {
-                total_sales += t.total_amount; // Total transaksi murni (qty * unit_price)
+                total_sales += t.total_amount;
                 admin_fee += (Number(t.admin_fee) || 0);
                 order_count++;
                 t.items.forEach(item => { 
@@ -447,7 +446,7 @@
         });
         
         const total_operational_expenses = filteredExpensesForDash.reduce((sum, exp) => sum + Number(exp.amount), 0);
-        const adjusted_gross = gross_revenue - admin_fee; // Pendapatan kotor setelah dikurangi biaya admin
+        const adjusted_gross = gross_revenue - admin_fee;
         const net_profit = adjusted_gross - cogs - total_operational_expenses;
         const cost_admin_total = cogs + admin_fee;
         const avg_order = order_count > 0 ? (total_sales / order_count) : 0;
@@ -455,7 +454,6 @@
         const maxProdSales = topProducts.length > 0 ? topProducts[0].total : 1;
         const recentTrx = [...filteredTransactionsForDash].sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5);
 
-        // Hitung persentase perubahan dari periode lalu
         const calcDiff = (curr, prev) => {
           if (prev === 0) return curr > 0 ? 100 : 0;
           return ((curr - prev) / prev) * 100;
@@ -463,7 +461,7 @@
 
         const diffs = {
           total_sales: calcDiff(total_sales, prevPeriodData.total_sales),
-          gross_revenue: calcDiff(adjusted_gross, prevPeriodData.gross_revenue - (prevPeriodData.gross_revenue > 0 ? 0 : 0)), // gross revenue perbandingan
+          gross_revenue: calcDiff(adjusted_gross, prevPeriodData.gross_revenue),
           cost_admin: calcDiff(cost_admin_total, prevPeriodData.cost_admin),
           operational_expenses: calcDiff(total_operational_expenses, prevPeriodData.operational_expenses),
           net_profit: calcDiff(net_profit, prevPeriodData.net_profit)
@@ -474,7 +472,6 @@
 
       const renderDiffBadge = (diffVal, invertColor = false) => {
         const isPositive = diffVal >= 0;
-        // Untuk operational expenses / cost, kenaikan bisa jadi kurang baik, tapi kita gunakan warna standar atau invert
         const colorClass = isPositive 
           ? (invertColor ? 'text-rose-500 bg-rose-500/10' : 'text-emerald-500 bg-emerald-500/10')
           : (invertColor ? 'text-emerald-500 bg-emerald-500/10' : 'text-rose-500 bg-rose-500/10');
@@ -569,7 +566,6 @@
         const currentAvailable = getAvailableStock(prod, products);
         if (newTrx.type === 'SALE' && currentAvailable < qty) return showToast('Stok tidak mencukupi!', 'error');
 
-        // TOTAL TRANSAKSI MURNI: harga barang dikali jumlah pembelian (tanpa ditambah/dikurangi biaya admin)
         const totalAmt = newTrx.type === 'SALE' ? (prod.selling_price * qty) : (prod.purchase_price * qty);
         const fee = newTrx.type === 'SALE' ? Number(newTrx.admin_fee || 0) : 0;
         
@@ -619,7 +615,6 @@
           }
         }
 
-        // TOTAL TRANSAKSI MURNI: harga barang dikali jumlah pembelian
         const totalAmt = editingTrx.type === 'SALE' ? (prod.selling_price * qty) : (prod.purchase_price * qty);
         const fee = editingTrx.type === 'SALE' ? Number(editingTrx.admin_fee || 0) : 0;
 
@@ -1053,7 +1048,6 @@
                     </div>
                   </div>
 
-                  {/* Dashboard Metrics Grid termasuk Pendapatan Kotor dan persentase perbandingan bulan lalu */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                     <div className="bg-white dark:bg-[#121824] p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card">
                       <div className="flex justify-between items-start">
@@ -1568,7 +1562,7 @@
                   <h3 className="text-lg font-extrabold text-slate-900 dark:text-white mb-2">{appDialog.title}</h3>
                   <p className="text-xs text-slate-600 dark:text-slate-400 mb-6 font-medium">{appDialog.message}</p>
                   {appDialog.type === 'prompt' && (
-                    <input type="text" className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white outline-none mb-6 text-xs" autoFocus
+                    <input type="text" className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white outline-none mb-6 text-xs" autofocus
                       value={appDialog.promptValue} onChange={(e) => setAppDialog({...appDialog, promptValue: e.target.value})} placeholder="Ketik alasan..." />
                   )}
                   <div className="flex space-x-2.5">
@@ -1584,7 +1578,7 @@
             <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999]">
               <div className="bg-white dark:bg-[#121824] rounded-3xl w-full max-w-md shadow-2xl animate-modal border border-slate-100 dark:border-slate-800 p-6 text-center">
                 <h3 className="text-lg font-extrabold text-slate-900 dark:text-white mb-2">Organisasi Baru Dibuat!</h3>
-                <input type="text" readOnly className="w-full px-3 py-2 bg-slate-50 dark:bg-[#182030] dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] font-mono text-center mb-6 select-all" value={newStoreModal.url} />
+                <input type="text" readonly className="w-full px-3 py-2 bg-slate-50 dark:bg-[#182030] dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] font-mono text-center mb-6 select-all" value={newStoreModal.url} />
                 <button onClick={() => setNewStoreModal({ isOpen: false, url: '' })} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold text-xs cursor-pointer">Tutup</button>
               </div>
             </div>
