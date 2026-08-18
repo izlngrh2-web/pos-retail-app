@@ -91,7 +91,7 @@
     }
 
     function App() {
-      const [isAuthenticated, setIsAuthenticated] = React.useState(() => localStorage.getItem('pos_is_auth') === 'true');
+      const [isAuthenticated, setIsAuthenticated] = React.useState(() => localStorage.getItem('pos_is_auth'] === 'true');
       const [currentUser, setCurrentUser] = React.useState(() => {
         const saved = localStorage.getItem('pos_current_user');
         return saved ? JSON.parse(saved) : null;
@@ -144,7 +144,7 @@
       const [showAddProduct, setShowAddProduct] = React.useState(false);
       const [newProduct, setNewProduct] = React.useState({ name: '', purchase_price: '', selling_price: '', stock: '', master_id: '', yield_per_master: 1, branch_id: 'ALL' });
       const [showAddTransaction, setShowAddTransaction] = React.useState(false);
-      const [newTrx, setNewTrx] = React.useState({ type: 'SALE', product_id: '', qty: 1, admin_fee: 0 });
+      const [newTrx, setNewTrx] = React.useState({ type: 'SALE', product_id: '', qty: 1, admin_fee: 0, branch_id: '' });
       const [showAddExpense, setShowAddExpense] = React.useState(false);
       const [newExp, setNewExp] = React.useState({ description: '', amount: '' });
       const [showAddBranch, setShowAddBranch] = React.useState(false);
@@ -487,7 +487,9 @@
         const fee = newTrx.type === 'SALE' ? Number(newTrx.admin_fee || 0) : 0;
         const totalAmt = newTrx.type === 'SALE' ? (baseAmt - fee) : (baseAmt + fee);
         
-        const trx = { id: 'TRX-' + Date.now().toString().slice(-6), branch_id: prod.branch_id === 'ALL' ? (currentUser.branch_id || 'b1') : prod.branch_id, user_id: currentUser.id, type: newTrx.type, total_amount: totalAmt, admin_fee: fee, status: 'COMPLETED', created_at: new Date().toISOString(), items: [{ product_id: prod.id, qty: qty, unit_price: prod.selling_price, unit_cost: prod.purchase_price, product_name: prod.name }] };
+        const targetBranchId = isOwner ? (newTrx.branch_id || currentUser.branch_id || 'b1') : (currentUser.branch_id || 'b1');
+
+        const trx = { id: 'TRX-' + Date.now().toString().slice(-6), branch_id: targetBranchId, user_id: currentUser.id, type: newTrx.type, total_amount: totalAmt, admin_fee: fee, status: 'COMPLETED', created_at: new Date().toISOString(), items: [{ product_id: prod.id, qty: qty, unit_price: prod.selling_price, unit_cost: prod.purchase_price, product_name: prod.name }] };
 
         let targetId = prod.id;
         let consumedQty = qty;
@@ -545,8 +547,11 @@
 
         setProducts(prevProducts => prevProducts.map(p => p.id === targetId ? { ...p, stock: Math.round((p.stock + stockDelta) * 100) / 100 } : p));
 
+        const targetBranchId = isOwner ? (editingTrx.branch_id || oldTrx.branch_id) : oldTrx.branch_id;
+
         const updatedTrx = {
           ...oldTrx,
+          branch_id: targetBranchId,
           type: editingTrx.type,
           total_amount: totalAmt,
           admin_fee: fee,
@@ -1035,7 +1040,7 @@
                               <td className="px-6 py-4 font-black text-slate-900 dark:text-white">{formatCurrency(t.total_amount)}</td>
                               <td className="px-6 py-4"><span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wide bg-emerald-500/10 text-emerald-400">{t.status}</span></td>
                               <td className="px-6 py-4 text-right space-x-1.5" onClick={(e) => e.stopPropagation()}>
-                                <button onClick={() => setEditingTrx({ id: t.id, type: t.type, product_id: t.items?.[0]?.product_id || '', qty: t.items?.[0]?.qty || 1, admin_fee: t.admin_fee || 0 })} className="px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 rounded-lg text-xs font-bold inline-flex items-center cursor-pointer"><i className="ph-bold ph-pencil mr-1"></i> Edit</button>
+                                <button onClick={() => setEditingTrx({ id: t.id, type: t.type, product_id: t.items?.[0]?.product_id || '', qty: t.items?.[0]?.qty || 1, admin_fee: t.admin_fee || 0, branch_id: t.branch_id || '' })} className="px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 rounded-lg text-xs font-bold inline-flex items-center cursor-pointer"><i className="ph-bold ph-pencil mr-1"></i> Edit</button>
                                 <button onClick={() => setSelectedReceiptTrx(t)} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold inline-flex items-center cursor-pointer"><i className="ph-bold ph-receipt mr-1"></i> Struk</button>
                                 <button onClick={() => triggerCancelTrx(t)} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 rounded-lg text-xs font-bold inline-flex items-center cursor-pointer"><i className="ph-bold ph-x mr-1"></i> Batalkan</button>
                               </td>
@@ -1300,6 +1305,7 @@
 
                 <div className="space-y-2 text-xs">
                   <div className="flex justify-between text-slate-500"><span>Waktu Transaksi</span><span className="font-bold text-slate-700 dark:text-slate-300">{new Date(selectedDetailTrx.created_at).toLocaleString('id-ID')}</span></div>
+                  <div className="flex justify-between text-slate-500"><span>Cabang</span><span className="font-bold text-slate-700 dark:text-slate-300">{branches.find(b => b.id === selectedDetailTrx.branch_id)?.name || selectedDetailTrx.branch_id || '-'}</span></div>
                   <div className="flex justify-between text-slate-500"><span>Status</span><span className="font-bold uppercase text-emerald-500">{selectedDetailTrx.status}</span></div>
                   
                   <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
@@ -1335,7 +1341,7 @@
                 </div>
 
                 <div className="flex flex-wrap gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
-                  <button onClick={() => { const t = selectedDetailTrx; setSelectedDetailTrx(null); setEditingTrx({ id: t.id, type: t.type, product_id: t.items?.[0]?.product_id || '', qty: t.items?.[0]?.qty || 1, admin_fee: t.admin_fee || 0 }); }} className="flex-1 py-3 bg-blue-500/10 text-blue-500 rounded-xl font-bold text-xs flex items-center justify-center cursor-pointer"><i className="ph-bold ph-pencil mr-1.5"></i> Edit Transaksi</button>
+                  <button onClick={() => { const t = selectedDetailTrx; setSelectedDetailTrx(null); setEditingTrx({ id: t.id, type: t.type, product_id: t.items?.[0]?.product_id || '', qty: t.items?.[0]?.qty || 1, admin_fee: t.admin_fee || 0, branch_id: t.branch_id || '' }); }} className="flex-1 py-3 bg-blue-500/10 text-blue-500 rounded-xl font-bold text-xs flex items-center justify-center cursor-pointer"><i className="ph-bold ph-pencil mr-1.5"></i> Edit Transaksi</button>
                   <button onClick={() => { const t = selectedDetailTrx; setSelectedDetailTrx(null); setSelectedReceiptTrx(t); }} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-xs flex items-center justify-center cursor-pointer"><i className="ph-bold ph-receipt mr-1.5"></i> Cetak Struk</button>
                   <button onClick={() => { const t = selectedDetailTrx; setSelectedDetailTrx(null); triggerCancelTrx(t); }} className="w-full py-3 bg-rose-500/10 text-rose-500 rounded-xl font-bold text-xs flex items-center justify-center cursor-pointer"><i className="ph-bold ph-x mr-1.5"></i> Batalkan Transaksi</button>
                 </div>
@@ -1349,6 +1355,17 @@
                 <div className="flex justify-between items-center mb-5"><h3 className="text-lg font-extrabold text-slate-900 dark:text-white">Edit Transaksi</h3><button onClick={() => setEditingTrx(null)} className="w-7 h-7 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-full cursor-pointer"><i className="ph-bold ph-x text-xs"></i></button></div>
                 <form onSubmit={submitEditTransaction} className="space-y-3.5">
                   <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Tipe</label><select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingTrx.type} onChange={(e)=>setEditingTrx({...editingTrx, type: e.target.value})}><option value="SALE">Penjualan</option><option value="PURCHASE">Pembelian Stok</option></select></div>
+                  
+                  {isOwner && (
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Pilih Cabang</label>
+                      <select required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold cursor-pointer" value={editingTrx.branch_id} onChange={(e)=>setEditingTrx({...editingTrx, branch_id: e.target.value})}>
+                        <option value="">Pilih Cabang...</option>
+                        {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                      </select>
+                    </div>
+                  )}
+
                   <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Produk</label><select required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingTrx.product_id} onChange={(e)=>setEditingTrx({...editingTrx, product_id: e.target.value})}><option value="">Pilih Produk...</option>{filteredProducts.map(p => <option key={p.id} value={p.id}>{p.name} (Stok: {getAvailableStock(p, products)})</option>)}</select></div>
                   <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Jumlah Qty</label><input type="number" min="1" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingTrx.qty} onChange={(e)=>setEditingTrx({...editingTrx, qty: e.target.value})} /></div>
                   {editingTrx.type === 'SALE' && (
@@ -1450,6 +1467,17 @@
                 <div className="flex justify-between items-center mb-5"><h3 className="text-lg font-extrabold text-slate-900 dark:text-white">Catat Transaksi</h3><button onClick={() => setShowAddTransaction(false)} className="w-7 h-7 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-full cursor-pointer"><i className="ph-bold ph-x text-xs"></i></button></div>
                 <form onSubmit={submitTransaction} className="space-y-3.5">
                   <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Tipe</label><select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newTrx.type} onChange={(e)=>setNewTrx({...newTrx, type: e.target.value})}><option value="SALE">Penjualan</option><option value="PURCHASE">Pembelian Stok</option></select></div>
+                  
+                  {isOwner && (
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Pilih Cabang</label>
+                      <select required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold cursor-pointer" value={newTrx.branch_id} onChange={(e)=>setNewTrx({...newTrx, branch_id: e.target.value})}>
+                        <option value="">Pilih Cabang...</option>
+                        {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                      </select>
+                    </div>
+                  )}
+
                   <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Produk</label><select required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newTrx.product_id} onChange={(e)=>setNewTrx({...newTrx, product_id: e.target.value})}><option value="">Pilih Produk...</option>{filteredProducts.map(p => <option key={p.id} value={p.id}>{p.name} (Stok: {getAvailableStock(p, products)})</option>)}</select></div>
                   <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Jumlah Qty</label><input type="number" min="1" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newTrx.qty} onChange={(e)=>setNewTrx({...newTrx, qty: e.target.value})} /></div>
                   {newTrx.type === 'SALE' && (
