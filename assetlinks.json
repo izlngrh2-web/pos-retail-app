@@ -1,8 +1,0 @@
-[{
-      "relation": ["delegate_permission/common.handle_all_urls"],
-      "target": {
-        "namespace": "android_app",
-        "package_name": "io.github.izlngrh2_web.twa",
-        "sha256_cert_fingerprints": ["BA:26:05:FC:CD:0C:9D:62:2E:32:A6:12:BC:16:62:17:DB:F4:80:72:01:93:FC:61:5B:AE:6B:6A:0D:8A:38:F9"]
-      }
-    }]
