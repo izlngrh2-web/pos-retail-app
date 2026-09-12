@@ -692,12 +692,18 @@
         try {
           const payload = { action: 'register', name: newUserForm.name, email: newUserForm.email, password: newUserForm.password, role: newUserForm.role, branch_id: newUserForm.branch_id, owner_email: currentUser.email };
           const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
-          const result = await res.json();
+          const text = await res.text();
+          console.log("RESPON SERVER:", text);
+          const result = JSON.parse(text);
           if (result.status === 'success') {
             setShowAddUser(false);
             setNewUserForm({ name: '', email: '', password: '', role: 'CASHIER', branch_id , owner_email: '' });
             showToast('Karyawan berhasil ditambahkan!');
-            await loadDataFromServer();
+            try {
+              await loadDataFromServer();
+            } catch(e) {
+              console.error("LOAD DATA ERROR:",e);
+            }
           } else {
             showToast(result.message, 'error');
           }
