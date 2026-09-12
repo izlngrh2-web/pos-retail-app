@@ -104,8 +104,11 @@
       
       const [branches, setBranches] = React.useState([]);
       const [users, setUsers] = React.useState([]);
+      
+      // FIX: Isolasi cache per akun agar tidak bercampur
       const [notifications, setNotifications] = React.useState(() => {
-        const saved = localStorage.getItem('pos_notifications');
+        const user = JSON.parse(localStorage.getItem('pos_current_user') || 'null');
+        const saved = localStorage.getItem(user ? `pos_notifications_${user.email}` : null);
         return saved ? JSON.parse(saved) : [
           { id: 'n1', title: 'Sistem Aktif', message: 'Selamat datang di Pro Finance Enterprise.', created_at: new Date().toISOString(), is_read: false, type: 'INFO' }
         ];
@@ -124,9 +127,22 @@
       const [selectedYear, setSelectedYear] = React.useState(currentDate.getFullYear());
       const [dashboardBranchFilter, setDashboardBranchFilter] = React.useState('ALL');
 
-      const [products, setProducts] = React.useState(() => { const saved = localStorage.getItem('pos_products'); return saved ? JSON.parse(saved) : []; });
-      const [transactions, setTransactions] = React.useState(() => { const saved = localStorage.getItem('pos_transactions'); return saved ? JSON.parse(saved) : []; });
-      const [expenses, setExpenses] = React.useState(() => { const saved = localStorage.getItem('pos_expenses'); return saved ? JSON.parse(saved) : []; });
+      // FIX: Isolasi cache per akun
+      const [products, setProducts] = React.useState(() => { 
+        const user = JSON.parse(localStorage.getItem('pos_current_user') || 'null');
+        const saved = localStorage.getItem(user ? `pos_products_${user.email}` : null); 
+        return saved ? JSON.parse(saved) : []; 
+      });
+      const [transactions, setTransactions] = React.useState(() => { 
+        const user = JSON.parse(localStorage.getItem('pos_current_user') || 'null');
+        const saved = localStorage.getItem(user ? `pos_transactions_${user.email}` : null); 
+        return saved ? JSON.parse(saved) : []; 
+      });
+      const [expenses, setExpenses] = React.useState(() => { 
+        const user = JSON.parse(localStorage.getItem('pos_current_user') || 'null');
+        const saved = localStorage.getItem(user ? `pos_expenses_${user.email}` : null); 
+        return saved ? JSON.parse(saved) : []; 
+      });
 
       const [selectedReceiptTrx, setSelectedReceiptTrx] = React.useState(null);
       const [selectedDetailTrx, setSelectedDetailTrx] = React.useState(null);
@@ -171,9 +187,12 @@
         localStorage.setItem('pos_theme_mode', themeMode);
       }, [themeMode]);
 
+      // FIX: Simpan notifikasi per user
       React.useEffect(() => {
-        localStorage.setItem('pos_notifications', JSON.stringify(notifications));
-      }, [notifications]);
+        if (currentUser) {
+          localStorage.setItem(`pos_notifications_${currentUser.email}`, JSON.stringify(notifications));
+        }
+      }, [notifications, currentUser]);
 
       const getPayloadWithAuth = (basePayload) => {
         return {
@@ -220,9 +239,20 @@
 
       React.useEffect(() => {
         if (currentUser?.spreadsheet_id) {
-          fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'get_branches' })) })
-            .then(res => res.json())
-            .then(res => { if(res.status === 'success') setBranches(res.data); });
+          fetch(SCRIPT_URL,{
+           method:'POST',
+           body:JSON.stringify(
+             getPayloadWithAuth({
+               action:'get_branches'
+             })
+           )
+          })
+          .then(res=>res.json())
+          .then(res=>{
+           if(res.status==='success'){
+             setBranches(res.data);
+           }
+          });
         }
       }, [currentUser]);
 
@@ -236,37 +266,32 @@
         } 
       }, [isAuthenticated, currentUser?.spreadsheet_id]);
 
+      // FIX: Simpan cache menggunakan prefix email pengguna aktif
+      React.useEffect(() => { if (currentUser) localStorage.setItem(`pos_products_${currentUser.email}`, JSON.stringify(products)); }, [products, currentUser]);
+      React.useEffect(() => { if (currentUser) localStorage.setItem(`pos_transactions_${currentUser.email}`, JSON.stringify(transactions)); }, [transactions, currentUser]);
+      React.useEffect(() => { if (currentUser) localStorage.setItem(`pos_expenses_${currentUser.email}`, JSON.stringify(expenses)); }, [expenses, currentUser]);
+      
+      // FIX: Sinkronisasi instan jika user berganti (ganti akun tanpa refresh browser)
       React.useEffect(() => {
+        if (currentUser) {
+          const savedProd = localStorage.getItem(`pos_products_${currentUser.email}`);
+          if (savedProd) setProducts(JSON.parse(savedProd));
+          else setProducts([]);
 
-console.log("CURRENT USER:", currentUser);
+          const savedTrx = localStorage.getItem(`pos_transactions_${currentUser.email}`);
+          if (savedTrx) setTransactions(JSON.parse(savedTrx));
+          else setTransactions([]);
 
-if (currentUser?.spreadsheet_id) {
+          const savedExp = localStorage.getItem(`pos_expenses_${currentUser.email}`);
+          if (savedExp) setExpenses(JSON.parse(savedExp));
+          else setExpenses([]);
 
-fetch(SCRIPT_URL,{
- method:'POST',
- body:JSON.stringify(
-   getPayloadWithAuth({
-     action:'get_branches'
-   })
- )
-})
-.then(res=>res.json())
-.then(res=>{
- console.log("BRANCH RESPONSE:",res);
+          const savedNotif = localStorage.getItem(`pos_notifications_${currentUser.email}`);
+          if (savedNotif) setNotifications(JSON.parse(savedNotif));
+          else setNotifications([{ id: 'n1', title: 'Sistem Aktif', message: 'Selamat datang di Pro Finance Enterprise.', created_at: new Date().toISOString(), is_read: false, type: 'INFO' }]);
+        }
+      }, [currentUser?.email]);
 
- if(res.status==='success'){
-   setBranches(res.data);
- }
-
-});
-
-}
-
-},[currentUser]);
-
-      React.useEffect(() => { localStorage.setItem('pos_products', JSON.stringify(products)); }, [products]);
-      React.useEffect(() => { localStorage.setItem('pos_transactions', JSON.stringify(transactions)); }, [transactions]);
-      React.useEffect(() => { localStorage.setItem('pos_expenses', JSON.stringify(expenses)); }, [expenses]);
       React.useEffect(() => {
         localStorage.setItem('pos_is_auth', isAuthenticated);
         if (currentUser) localStorage.setItem('pos_current_user', JSON.stringify(currentUser));
@@ -330,9 +355,16 @@ fetch(SCRIPT_URL,{
         } catch (error) { showToast('Koneksi server gagal.', 'error'); } finally { setIsLoading(false); }
       };
 
+      // FIX: Kosongkan state di UI saat logout agar tidak terlihat saat akun baru login
       const handleLogout = () => {
         setIsAuthenticated(false);
         setCurrentUser(null);
+        setProducts([]);
+        setTransactions([]);
+        setExpenses([]);
+        setBranches([]);
+        setUsers([]);
+        setNotifications([{ id: 'n1', title: 'Sistem Aktif', message: 'Selamat datang di Pro Finance Enterprise.', created_at: new Date().toISOString(), is_read: false, type: 'INFO' }]);
         localStorage.removeItem('pos_is_auth');
         localStorage.removeItem('pos_current_user');
         showToast('Berhasil keluar.');
@@ -721,17 +753,14 @@ fetch(SCRIPT_URL,{
           const payload = { action: 'register', name: newUserForm.name, email: newUserForm.email, password: newUserForm.password, role: newUserForm.role, branch_id: newUserForm.branch_id, owner_email: currentUser.email };
           const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
           const text = await res.text();
-          console.log("RESPON SERVER:", text);
           const result = JSON.parse(text);
           if (result.status === 'success') {
             setShowAddUser(false);
-            setNewUserForm({ name: '', email: '', password: '', role: 'CASHIER', branch_id , owner_email: '' });
+            setNewUserForm({ name: '', email: '', password: '', role: 'CASHIER', branch_id: '', owner_email: '' });
             showToast('Karyawan berhasil ditambahkan!');
             try {
               await loadDataFromServer();
-            } catch(e) {
-              console.error("LOAD DATA ERROR:",e);
-            }
+            } catch(e) {}
           } else {
             showToast(result.message, 'error');
           }
@@ -804,9 +833,7 @@ fetch(SCRIPT_URL,{
                 method: 'POST', 
                 body: JSON.stringify(getPayloadWithAuth({ action: 'update_transaction', transaction: { ...trx, status: 'PENDING_CANCEL', cancel_reason: reason } })) 
               });
-            } catch (err) {
-              console.error("Gagal menyinkronkan permintaan pembatalan", err);
-            }
+            } catch (err) {}
           }
         }});
       };
