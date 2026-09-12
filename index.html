@@ -236,6 +236,34 @@
         } 
       }, [isAuthenticated, currentUser?.spreadsheet_id]);
 
+      React.useEffect(() => {
+
+console.log("CURRENT USER:", currentUser);
+
+if (currentUser?.spreadsheet_id) {
+
+fetch(SCRIPT_URL,{
+ method:'POST',
+ body:JSON.stringify(
+   getPayloadWithAuth({
+     action:'get_branches'
+   })
+ )
+})
+.then(res=>res.json())
+.then(res=>{
+ console.log("BRANCH RESPONSE:",res);
+
+ if(res.status==='success'){
+   setBranches(res.data);
+ }
+
+});
+
+}
+
+},[currentUser]);
+
       React.useEffect(() => { localStorage.setItem('pos_products', JSON.stringify(products)); }, [products]);
       React.useEffect(() => { localStorage.setItem('pos_transactions', JSON.stringify(transactions)); }, [transactions]);
       React.useEffect(() => { localStorage.setItem('pos_expenses', JSON.stringify(expenses)); }, [expenses]);
