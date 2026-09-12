@@ -690,12 +690,12 @@
         e.preventDefault();
         setIsLoading(true);
         try {
-          const payload = { action: 'register', name: newUserForm.name, email: newUserForm.email, password: newUserForm.password, role: newUserForm.role, branch_id: newUserForm.branch_id };
+          const payload = { action: 'register', name: newUserForm.name, email: newUserForm.email, password: newUserForm.password, role: newUserForm.role, branch_id: newUserForm.branch_id, owner_email: currentUser.email };
           const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
           const result = await res.json();
           if (result.status === 'success') {
             setShowAddUser(false);
-            setNewUserForm({ name: '', email: '', password: '', role: 'CASHIER', branch_id , owner_email: currentUser.email: '' });
+            setNewUserForm({ name: '', email: '', password: '', role: 'CASHIER', branch_id , owner_email: '' });
             showToast('Karyawan berhasil ditambahkan!');
             await loadDataFromServer();
           } else {
