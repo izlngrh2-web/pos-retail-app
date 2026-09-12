@@ -695,7 +695,7 @@
           const result = await res.json();
           if (result.status === 'success') {
             setShowAddUser(false);
-            setNewUserForm({ name: '', email: '', password: '', role: 'CASHIER', branch_id: '' });
+            setNewUserForm({ name: '', email: '', password: '', role: 'CASHIER', branch_id , owner_email: currentUser.email: '' });
             showToast('Karyawan berhasil ditambahkan!');
             await loadDataFromServer();
           } else {
