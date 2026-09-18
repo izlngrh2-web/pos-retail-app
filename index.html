@@ -1113,58 +1113,89 @@
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                    <div className="bg-white dark:bg-[#121824] p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card">
-                      <div className="flex justify-between items-start">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Penjualan</p>
+                  <!-- Kartu Statistik Dashboard yang Dipercantik -->
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    
+                    <!-- Kartu 1: Total Pendapatan -->
+                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-800 p-6 text-white shadow-xl">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-blue-200">Total Pendapatan Hari Ini</p>
+                          <h3 className="text-3xl font-bold mt-2">{formatCurrency(dashStatsExt.total_sales)}</h3>
+                        </div>
+                        <div className="p-3 bg-white/10 rounded-xl backdrop-blur-md">
+                          <i className="ph-bold ph-wallet text-2xl text-blue-100"></i>
+                        </div>
+                      </div>
+                      <div className="mt-4 flex items-center text-xs text-blue-200">
                         {renderDiffBadge(dashStatsExt.diffs.total_sales)}
+                        <span className="ml-1">dari periode lalu</span>
                       </div>
-                      <p className="text-xl font-black text-slate-900 dark:text-white mt-1">{formatCurrency(dashStatsExt.total_sales)}</p>
                     </div>
 
-                    <div className="bg-white dark:bg-[#121824] p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card">
-                      <div className="flex justify-between items-start">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Pendapatan Kotor</p>
+                    <!-- Kartu 2: Pendapatan Kotor -->
+                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-600 to-pink-700 p-6 text-white shadow-xl">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-purple-200">Pendapatan Kotor</p>
+                          <h3 className="text-3xl font-bold mt-2">{formatCurrency(dashStatsExt.adjusted_gross)}</h3>
+                        </div>
+                        <div className="p-3 bg-white/10 rounded-xl backdrop-blur-md">
+                          <i className="ph-bold ph-chart-line-up text-2xl text-purple-100"></i>
+                        </div>
+                      </div>
+                      <div className="mt-4 flex items-center text-xs text-purple-200">
                         {renderDiffBadge(dashStatsExt.diffs.gross_revenue)}
+                        <span className="ml-1">setelah potongan</span>
                       </div>
-                      <p className="text-xl font-black text-blue-500 mt-1">{formatCurrency(dashStatsExt.adjusted_gross)}</p>
                     </div>
 
-                    <div className="bg-white dark:bg-[#121824] p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card">
-                      <div className="flex justify-between items-start">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">HPP & Biaya Admin</p>
-                        {renderDiffBadge(dashStatsExt.diffs.cost_admin, true)}
+                    <!-- Kartu 3: Laba Bersih -->
+                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-800 p-6 text-white shadow-xl">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-emerald-200">Laba Bersih</p>
+                          <h3 className="text-3xl font-bold mt-2">{formatCurrency(dashStatsExt.net_profit)}</h3>
+                        </div>
+                        <div className="p-3 bg-white/10 rounded-xl backdrop-blur-md">
+                          <i className="ph-bold ph-coins text-2xl text-emerald-100"></i>
+                        </div>
                       </div>
-                      <p className="text-xl font-black text-rose-500 mt-1">{formatCurrency(dashStatsExt.cost_admin_total)}</p>
-                    </div>
-
-                    <div className="bg-white dark:bg-[#121824] p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card">
-                      <div className="flex justify-between items-start">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Biaya Operasional</p>
-                        {renderDiffBadge(dashStatsExt.diffs.operational_expenses, true)}
-                      </div>
-                      <p className="text-xl font-black text-amber-500 mt-1">{formatCurrency(dashStatsExt.total_operational_expenses)}</p>
-                    </div>
-
-                    <div className="bg-blue-600 text-white p-5 rounded-2xl shadow-lg shadow-blue-500/20">
-                      <div className="flex justify-between items-start">
-                        <p className="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-1">Laba Bersih</p>
+                      <div className="mt-4 flex items-center text-xs text-emerald-200">
                         {renderDiffBadge(dashStatsExt.diffs.net_profit)}
+                        <span className="ml-1">keuntungan bersih</span>
                       </div>
-                      <p className="text-xl font-black mt-1">{formatCurrency(dashStatsExt.net_profit)}</p>
                     </div>
-                  </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
-                    <div className="lg:col-span-2 bg-white dark:bg-[#121824] p-6 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card">
-                      <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6">Grafik Penjualan</h3>
+                  </div>
+                      
+                  <div className="lg:col-span-2 bg-white dark:bg-[#121824] p-6 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card">
+                      <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Grafik Tren Penjualan</h3>
+                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-500">Real-time Analytics</span>
+                      </div>
                       <div className="h-56 relative w-full pt-2">
                         <svg className="w-full h-full overflow-visible" viewBox="0 0 700 200" preserveAspectRatio="none">
+                          <defs>
+                            <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#2563eb" stopOpacity="0.3" />
+                              <stop offset="100%" stopColor="#2563eb" stopOpacity="0.0" />
+                            </linearGradient>
+                          </defs>
                           {(() => {
                             const n = dailyChartData.length; const stepX = n > 1 ? 700 / (n - 1) : 700;
                             const points = dailyChartData.map((item, idx) => ({ x: idx * stepX, y: 180 - (maxChartVal > 0 ? (Math.max(0, item.revenue) / maxChartVal) * 160 : 0) }));
                             const linePath = points.reduce((acc, p, i) => i === 0 ? `M ${p.x} ${p.y}` : `${acc} L ${p.x} ${p.y}`, '');
-                            return <path d={linePath} fill="none" stroke="#2563eb" strokeWidth="3" />
+                            const areaPath = `${linePath} L 700 180 L 0 180 Z`;
+                            return (
+                              <>
+                                <path d={areaPath} fill="url(#chartGradient)" />
+                                <path d={linePath} fill="none" stroke="#2563eb" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+                                {points.map((p, idx) => (
+                                  <circle key={idx} cx={p.x} cy={p.y} r="4" className="fill-blue-600 dark:fill-blue-400 ring-4 ring-white dark:ring-[#121824]" />
+                                ))}
+                              </>
+                            );
                           })()}
                         </svg>
                       </div>
@@ -1184,27 +1215,44 @@
                     </div>
                   </div>
 
-                  <div className="bg-white dark:bg-[#121824] p-6 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card mt-4">
-                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-5">Transaksi Terakhir</h3>
+                  <div className="bg-white dark:bg-[#121824] p-6 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card mt-6">
+                    <div className="flex justify-between items-center mb-5">
+                      <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Transaksi Terakhir</h3>
+                      <span className="text-[10px] text-slate-400 font-medium">Ketuk baris untuk detail</span>
+                    </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs">
-                        <thead className="border-b border-slate-100 dark:border-slate-800">
-                          <tr><th className="pb-3 text-slate-400">ID / Waktu</th><th className="pb-3 text-slate-400">Total</th><th className="pb-3 text-slate-400">Status</th></tr>
+                        <thead>
+                          <tr className="border-b border-slate-100 dark:border-slate-800 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                            <th className="pb-3 pl-2">ID / Waktu</th>
+                            <th className="pb-3">Total Pembayaran</th>
+                            <th className="pb-3 text-right pr-2">Status</th>
+                          </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                           {dashStatsExt.recentTrx.map(trx => (
-                            <tr key={trx.id} onClick={() => setSelectedDetailTrx(trx)} className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                              <td className="py-3"><span className="font-bold text-slate-900 dark:text-white block">{trx.id}</span><span className="text-[10px] text-slate-400">{new Date(trx.created_at).toLocaleString('id-ID')}</span></td>
-                              <td className="py-3 font-black text-slate-900 dark:text-white">{formatCurrency(trx.total_amount)}</td>
-                              <td className="py-3"><span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-500/10 text-emerald-400">{trx.status}</span></td>
+                            <tr key={trx.id} onClick={() => setSelectedDetailTrx(trx)} className="cursor-pointer group hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-colors">
+                              <td className="py-3.5 pl-2">
+                                <span className="font-extrabold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors block">{trx.id}</span>
+                                <span className="text-[10px] text-slate-400 font-medium">{new Date(trx.created_at).toLocaleString('id-ID')}</span>
+                              </td>
+                              <td className="py-3.5 font-black text-slate-900 dark:text-white">{formatCurrency(trx.total_amount)}</td>
+                              <td className="py-3.5 text-right pr-2">
+                                <span className="px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wide bg-emerald-500/10 text-emerald-500 inline-flex items-center">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span> {trx.status}
+                                </span>
+                              </td>
                             </tr>
                           ))}
-                          {dashStatsExt.recentTrx.length === 0 && <tr><td colSpan="3" className="py-4 text-center text-slate-400">Belum ada transaksi</td></tr>}
+                          {dashStatsExt.recentTrx.length === 0 && (
+                            <tr>
+                              <td colSpan="3" className="py-8 text-center text-slate-400 font-medium">Belum ada data transaksi</td>
+                            </tr>
+                          )}
                         </tbody>
                       </table>
                     </div>
                   </div>
-                </div>
               )}
 
               {currentView === 'transactions' && (
