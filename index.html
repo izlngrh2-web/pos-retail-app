@@ -105,7 +105,6 @@
       const [branches, setBranches] = React.useState([]);
       const [users, setUsers] = React.useState([]);
       
-      // FIX: Isolasi cache per akun agar tidak bercampur
       const [notifications, setNotifications] = React.useState(() => {
         const user = JSON.parse(localStorage.getItem('pos_current_user') || 'null');
         const saved = localStorage.getItem(user ? `pos_notifications_${user.email}` : null);
@@ -127,7 +126,11 @@
       const [selectedYear, setSelectedYear] = React.useState(currentDate.getFullYear());
       const [dashboardBranchFilter, setDashboardBranchFilter] = React.useState('ALL');
 
-      // FIX: Isolasi cache per akun
+      // State Filter untuk Halaman Transaksi
+      const [filterType, setFilterType] = React.useState('ALL');
+      const [startDate, setStartDate] = React.useState('');
+      const [endDate, setEndDate] = React.useState('');
+
       const [products, setProducts] = React.useState(() => { 
         const user = JSON.parse(localStorage.getItem('pos_current_user') || 'null');
         const saved = localStorage.getItem(user ? `pos_products_${user.email}` : null); 
@@ -138,9 +141,6 @@
         const saved = localStorage.getItem(user ? `pos_transactions_${user.email}` : null); 
         return saved ? JSON.parse(saved) : []; 
       });
-      const [filterType, setFilterType] = React.useState('ALL');
-      const [startDate, setStartDate] = React.useState('');
-      const [endDate, setEndDate] = React.useState('');
       const [expenses, setExpenses] = React.useState(() => { 
         const user = JSON.parse(localStorage.getItem('pos_current_user') || 'null');
         const saved = localStorage.getItem(user ? `pos_expenses_${user.email}` : null); 
@@ -190,7 +190,6 @@
         localStorage.setItem('pos_theme_mode', themeMode);
       }, [themeMode]);
 
-      // FIX: Simpan notifikasi per user
       React.useEffect(() => {
         if (currentUser) {
           localStorage.setItem(`pos_notifications_${currentUser.email}`, JSON.stringify(notifications));
@@ -269,12 +268,10 @@
         } 
       }, [isAuthenticated, currentUser?.spreadsheet_id]);
 
-      // FIX: Simpan cache menggunakan prefix email pengguna aktif
       React.useEffect(() => { if (currentUser) localStorage.setItem(`pos_products_${currentUser.email}`, JSON.stringify(products)); }, [products, currentUser]);
       React.useEffect(() => { if (currentUser) localStorage.setItem(`pos_transactions_${currentUser.email}`, JSON.stringify(transactions)); }, [transactions, currentUser]);
       React.useEffect(() => { if (currentUser) localStorage.setItem(`pos_expenses_${currentUser.email}`, JSON.stringify(expenses)); }, [expenses, currentUser]);
       
-      // FIX: Sinkronisasi instan jika user berganti (ganti akun tanpa refresh browser)
       React.useEffect(() => {
         if (currentUser) {
           const savedProd = localStorage.getItem(`pos_products_${currentUser.email}`);
@@ -358,7 +355,6 @@
         } catch (error) { showToast('Koneksi server gagal.', 'error'); } finally { setIsLoading(false); }
       };
 
-      // FIX: Kosongkan state di UI saat logout agar tidak terlihat saat akun baru login
       const handleLogout = () => {
         setIsAuthenticated(false);
         setCurrentUser(null);
@@ -1116,10 +1112,9 @@
                     </div>
                   </div>
 
-                  <!-- Kartu Statistik Dashboard yang Dipercantik -->
+                  {/* KARTU STATISTIK DASHBOARD DENGAN GRADASI MODERN */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     
-                    <!-- Kartu 1: Total Pendapatan -->
                     <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-800 p-6 text-white shadow-xl">
                       <div className="flex items-center justify-between">
                         <div>
@@ -1136,7 +1131,6 @@
                       </div>
                     </div>
 
-                    <!-- Kartu 2: Pendapatan Kotor -->
                     <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-600 to-pink-700 p-6 text-white shadow-xl">
                       <div className="flex items-center justify-between">
                         <div>
@@ -1153,7 +1147,6 @@
                       </div>
                     </div>
 
-                    <!-- Kartu 3: Laba Bersih -->
                     <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-800 p-6 text-white shadow-xl">
                       <div className="flex items-center justify-between">
                         <div>
@@ -1171,8 +1164,10 @@
                     </div>
 
                   </div>
-                      
-                  <div className="lg:col-span-2 bg-white dark:bg-[#121824] p-6 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card">
+
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
+                    {/* GRAFIK PENJUALAN DENGAN EFEK AREA GRADASI */}
+                    <div className="lg:col-span-2 bg-white dark:bg-[#121824] p-6 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card">
                       <div className="flex justify-between items-center mb-6">
                         <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Grafik Tren Penjualan</h3>
                         <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-500">Real-time Analytics</span>
@@ -1218,6 +1213,7 @@
                     </div>
                   </div>
 
+                  {/* TABEL TRANSAKSI TERAKHIR YANG DIPERCANTIK */}
                   <div className="bg-white dark:bg-[#121824] p-6 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card mt-6">
                     <div className="flex justify-between items-center mb-5">
                       <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Transaksi Terakhir</h3>
@@ -1256,8 +1252,10 @@
                       </table>
                     </div>
                   </div>
+                </div>
               )}
 
+              {/* HALAMAN HISTORI TRANSAKSI DENGAN FITUR FILTER LENGKAP */}
               {currentView === 'transactions' && (
                 <div className="space-y-6">
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -1265,7 +1263,6 @@
                     <button onClick={() => setShowAddTransaction(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-sm flex items-center cursor-pointer"><i className="ph-bold ph-plus mr-2"></i> Transaksi Baru</button>
                   </div>
 
-                  {/* Panel Filter Interaktif */}
                   <div className="bg-white dark:bg-[#121824] p-4 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
                     <div>
                       <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Filter Tipe</label>
@@ -1294,7 +1291,6 @@
                     </div>
                   </div>
 
-                  {/* Tabel Data dengan Filter */}
                   <div className="bg-white dark:bg-[#121824] rounded-2xl shadow-card dark:shadow-dark-card border border-slate-200/60 dark:border-slate-800/80 overflow-hidden">
                     <table className="min-w-full text-xs text-left">
                       <thead className="bg-slate-50 dark:bg-[#182030] border-b border-slate-100 dark:border-slate-800">
@@ -1746,7 +1742,7 @@
                   <h3 className="text-lg font-extrabold text-slate-900 dark:text-white mb-2">{appDialog.title}</h3>
                   <p className="text-xs text-slate-600 dark:text-slate-400 mb-6 font-medium">{appDialog.message}</p>
                   {appDialog.type === 'prompt' && (
-                    <input type="text" className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white outline-none mb-6 text-xs" autofocus
+                    <input type="text" className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white outline-none mb-6 text-xs" autoFocus
                       value={appDialog.promptValue} onChange={(e) => setAppDialog({...appDialog, promptValue: e.target.value})} placeholder="Ketik alasan..." />
                   )}
                   <div className="flex space-x-2.5">
@@ -1762,7 +1758,7 @@
             <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999]">
               <div className="bg-white dark:bg-[#121824] rounded-3xl w-full max-w-md shadow-2xl animate-modal border border-slate-100 dark:border-slate-800 p-6 text-center">
                 <h3 className="text-lg font-extrabold text-slate-900 dark:text-white mb-2">Organisasi Baru Dibuat!</h3>
-                <input type="text" readonly className="w-full px-3 py-2 bg-slate-50 dark:bg-[#182030] dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] font-mono text-center mb-6 select-all" value={newStoreModal.url} />
+                <input type="text" readOnly className="w-full px-3 py-2 bg-slate-50 dark:bg-[#182030] dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] font-mono text-center mb-6 select-all" value={newStoreModal.url} />
                 <button onClick={() => setNewStoreModal({ isOpen: false, url: '' })} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold text-xs cursor-pointer">Tutup</button>
               </div>
             </div>
