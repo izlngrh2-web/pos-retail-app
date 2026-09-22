@@ -1800,15 +1800,19 @@
     <option value="">Pilih Produk...</option>
     {products.filter(p => {
       const targetBranch = isOwner ? (newTrx.branch_id || '') : (currentUser?.branch_id || '');
-      // Jika belum memilih cabang sama sekali, tampilkan semua produk
       if (!targetBranch) return true;
       
-      // Normalisasi nilai branch_id pada produk
-      const pBranch = (p.branch_id || 'ALL').toString().trim().toUpperCase();
+      // Ambil daftar cabang produk (bisa berupa array atau string tunggal dari database lama)
+      let pBranches = p.branch_ids || (p.branch_id ? [p.branch_id] : ['ALL']);
+      if (typeof pBranches === 'string') {
+        pBranches = p.branch_ids.includes(',') ? p.branch_ids.split(',') : [p.branch_ids];
+      }
+      
+      const normalizedBranches = pBranches.map(b => b.toString().trim().toUpperCase());
       const tBranch = targetBranch.toString().trim().toUpperCase();
       
-      // Tampilkan jika produk diset ke ALL/Global, atau ID cabangnya cocok persis
-      return pBranch === 'ALL' || pBranch === tBranch || p.branch_id === targetBranch;
+      // Tampilkan jika mencakup ALL atau ID cabang yang dipilih ada di dalam daftar
+      return normalizedBranches.includes('ALL') || normalizedBranches.includes(tBranch);
     }).map(p => (
       <option key={p.id} value={p.id}>{p.name} (Stok: {getAvailableStock(p, products)})</option>
     ))}
@@ -1870,14 +1874,50 @@
                   
                   {isOwner && (
                     <div>
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Tersedia di Cabang</label>
-                      <select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold cursor-pointer" value={newProduct.branch_id} onChange={(e)=>setNewProduct({...newProduct, branch_id: e.target.value})}>
-                        <option value="ALL">Semua Cabang (Global)</option>
-                        {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                      </select>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tersedia di Cabang (Pilih Salah Satu atau Banyak)</label>
+                      <div className="space-y-2 bg-slate-50 dark:bg-[#182030] p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 max-h-40 overflow-y-auto">
+                        <label className="flex items-center space-x-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+                            checked={newProduct.branch_ids ? newProduct.branch_ids.includes('ALL') : true}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setNewProduct({...newProduct, branch_ids: ['ALL']});
+                              } else {
+                                setNewProduct({...newProduct, branch_ids: []});
+                              }
+                            }}
+                          />
+                          <span>Semua Cabang (Global / ALL)</span>
+                        </label>
+                        <hr className="border-slate-200 dark:border-slate-700 my-1" />
+                        {branches.map(b => {
+                          const currentBranches = newProduct.branch_ids || ['ALL'];
+                          const isChecked = currentBranches.includes('ALL') || currentBranches.includes(b.id);
+                          return (
+                            <label key={b.id} className="flex items-center space-x-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
+                              <input 
+                                type="checkbox" 
+                                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+                                checked={isChecked && !currentBranches.includes('ALL')}
+                                onChange={(e) => {
+                                  let updated = currentBranches.filter(id => id !== 'ALL');
+                                  if (e.target.checked) {
+                                    updated.push(b.id);
+                                  } else {
+                                    updated = updated.filter(id => id !== b.id);
+                                  }
+                                  setNewProduct({...newProduct, branch_ids: updated});
+                                }}
+                              />
+                              <span>{b.name}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
-
                   <div>
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Produk Master (Opsional untuk Varian)</label>
                     <select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold cursor-pointer" value={newProduct.master_id} onChange={(e)=>setNewProduct({...newProduct, master_id: e.target.value})}>
@@ -1905,17 +1945,63 @@
           {editingProduct && (
             <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999]">
               <div className="bg-white dark:bg-[#121824] p-6 rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 max-h-[90vh] overflow-y-auto">
-                <div className="flex justify-between items-center mb-5"><h3 className="text-lg font-extrabold text-slate-900 dark:text-white">Edit Produk / Varian</h3><button onClick={() => setEditingProduct(null)} className="w-7 h-7 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-full cursor-pointer"><i className="ph-bold ph-x text-xs"></i></button></div>
+                <div className="flex justify-between items-center mb-5">
+                  <h3 className="text-lg font-extrabold text-slate-900 dark:text-white">Edit Produk / Varian</h3>
+                  <button onClick={() => setEditingProduct(null)} className="w-7 h-7 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-full cursor-pointer"><i className="ph-bold ph-x text-xs"></i></button>
+                </div>
                 <form onSubmit={submitEditProduct} className="space-y-3.5">
-                  <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Nama</label><input type="text" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingProduct.name} onChange={(e)=>setEditingProduct({...editingProduct, name: e.target.value})} /></div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Nama</label>
+                    <input type="text" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingProduct.name} onChange={(e)=>setEditingProduct({...editingProduct, name: e.target.value})} />
+                  </div>
                   
                   {isOwner && (
                     <div>
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Tersedia di Cabang</label>
-                      <select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold cursor-pointer" value={editingProduct.branch_id || 'ALL'} onChange={(e)=>setEditingProduct({...editingProduct, branch_id: e.target.value})}>
-                        <option value="ALL">Semua Cabang (Global)</option>
-                        {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                      </select>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tersedia di Cabang (Pilih Salah Satu atau Banyak)</label>
+                      <div className="space-y-2 bg-slate-50 dark:bg-[#182030] p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 max-h-40 overflow-y-auto">
+                        <label className="flex items-center space-x-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+                            checked={(() => {
+                              const bList = editingProduct.branch_ids || (editingProduct.branch_id ? [editingProduct.branch_id] : ['ALL']);
+                              return bList.includes('ALL');
+                            })()}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setEditingProduct({...editingProduct, branch_ids: ['ALL'], branch_id: 'ALL'});
+                              } else {
+                                setEditingProduct({...editingProduct, branch_ids: [], branch_id: ''});
+                              }
+                            }}
+                          />
+                          <span>Semua Cabang (Global / ALL)</span>
+                        </label>
+                        <hr className="border-slate-200 dark:border-slate-700 my-1" />
+                        {branches.map(b => {
+                          const currentBranches = editingProduct.branch_ids || (editingProduct.branch_id ? [editingProduct.branch_id] : ['ALL']);
+                          const isChecked = currentBranches.includes('ALL') || currentBranches.includes(b.id);
+                          return (
+                            <label key={b.id} className="flex items-center space-x-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
+                              <input 
+                                type="checkbox" 
+                                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+                                checked={isChecked && !currentBranches.includes('ALL')}
+                                onChange={(e) => {
+                                  let updated = currentBranches.filter(id => id !== 'ALL');
+                                  if (e.target.checked) {
+                                    updated.push(b.id);
+                                  } else {
+                                    updated = updated.filter(id => id !== b.id);
+                                  }
+                                  setEditingProduct({...editingProduct, branch_ids: updated, branch_id: updated.join(',')});
+                                }}
+                              />
+                              <span>{b.name}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 
@@ -1928,14 +2014,26 @@
                   </div>
 
                   {editingProduct.master_id ? (
-                    <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Yield per Master</label><input type="number" step="0.1" min="0.1" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingProduct.yield_per_master || 1} onChange={(e)=>setEditingProduct({...editingProduct, yield_per_master: e.target.value})} /></div>
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Yield per Master</label>
+                      <input type="number" step="0.1" min="0.1" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingProduct.yield_per_master || 1} onChange={(e)=>setEditingProduct({...editingProduct, yield_per_master: e.target.value})} />
+                    </div>
                   ) : (
-                    <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Stok</label><input type="number" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingProduct.stock} onChange={(e)=>setEditingProduct({...editingProduct, stock: e.target.value})} /></div>
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Stok</label>
+                      <input type="number" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingProduct.stock} onChange={(e)=>setEditingProduct({...editingProduct, stock: e.target.value})} />
+                    </div>
                   )}
 
                   <div className="grid grid-cols-2 gap-3">
-                    <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Modal</label><input type="number" required className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingProduct.purchase_price} onChange={(e)=>setEditingProduct({...editingProduct, purchase_price: e.target.value})} /></div>
-                    <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Jual</label><input type="number" required className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingProduct.selling_price} onChange={(e)=>setEditingProduct({...editingProduct, selling_price: e.target.value})} /></div>
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Modal</label>
+                      <input type="number" required className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingProduct.purchase_price} onChange={(e)=>setEditingProduct({...editingProduct, purchase_price: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Jual</label>
+                      <input type="number" required className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingProduct.selling_price} onChange={(e)=>setEditingProduct({...editingProduct, selling_price: e.target.value})} />
+                    </div>
                   </div>
                   <button type="submit" className="w-full mt-3 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-md hover:bg-blue-700 transition cursor-pointer">Simpan Perubahan</button>
                 </form>
