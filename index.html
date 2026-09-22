@@ -1180,73 +1180,68 @@
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
-                    {/* GRAFIK PENJUALAN DENGAN EFEK AREA GRADASI */}
-                    <div className="lg:col-span-2 bg-white dark:bg-[#121824] p-6 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card">
-                      <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Grafik Tren Penjualan</h3>
-                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-500">Real-time Analytics</span>
-                      </div>
-                      <div className="h-56 relative w-full pt-2">
-                        <svg className="w-full h-full overflow-visible" viewBox="0 0 700 200" preserveAspectRatio="none">
-                          <defs>
-                            <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#2563eb" stopOpacity="0.3" />
-                              <stop offset="100%" stopColor="#2563eb" stopOpacity="0.0" />
-                            </linearGradient>
-                          </defs>
-                          {(() => {
-                            const n = dailyChartData.length; const stepX = n > 1 ? 700 / (n - 1) : 700;
-                            const points = dailyChartData.map((item, idx) => ({ x: idx * stepX, y: 180 - (maxChartVal > 0 ? (Math.max(0, item.revenue) / maxChartVal) * 160 : 0) }));
-                            const linePath = points.reduce((acc, p, i) => i === 0 ? `M ${p.x} ${p.y}` : `${acc} L ${p.x} ${p.y}`, '');
-                            const areaPath = `${linePath} L 700 180 L 0 180 Z`;
-                            return (
-                              <>
-                                <path d={areaPath} fill="url(#chartGradient)" />
-                                <path d={linePath} fill="none" stroke="#2563eb" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
-                                {points.map((p, idx) => (
-                                  <circle key={idx} cx={p.x} cy={p.y} r="4" className="fill-blue-600 dark:fill-blue-400 ring-4 ring-white dark:ring-[#121824]" />
-                                ))}
-                              </>
-                            );
-                          })()}
-                        </svg>
-                      </div>
-                      <div className="relative bg-white dark:bg-[#121824] p-6 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-800 mb-8">
+                    {/* GRAFIK TREN PENJUALAN INTERAKTIF */}
+<div className="relative bg-white dark:bg-[#121824] p-6 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-800 mb-8">
   <div className="flex justify-between items-center mb-4">
-    <h3 className="text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">Grafik Tren Penjualan Harian</h3>
-    <span className="text-[10px] text-slate-400 font-medium">Ketuk titik grafik untuk melihat detail</span>
+    <div>
+      <h3 className="text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">Grafik Tren Penjualan Harian</h3>
+      <p className="text-[10px] text-slate-400 font-medium mt-0.5">Ketuk titik pada grafik untuk melihat rincian tanggal</p>
+    </div>
+    {activeChartPoint !== null && (
+      <button 
+        onClick={() => setActiveChartPoint(null)} 
+        className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-2.5 py-1 rounded-lg font-bold hover:bg-slate-200 transition cursor-pointer">
+        Tutup Detail
+      </button>
+    )}
   </div>
 
-  {/* Tooltip Pop-up di atas grafik saat titik disentuh */}
-  {activeChartPoint !== null && (
-    <div className="absolute top-4 right-6 bg-slate-900 text-white dark:bg-white dark:text-slate-900 px-4 py-2 rounded-xl text-xs shadow-lg transition-all z-10">
-      <p className="font-bold">Tanggal: {chartData[activeChartPoint]?.date}</p>
-      <p className="text-blue-400 dark:text-blue-600 font-extrabold">Penjualan: {formatCurrency(chartData[activeChartPoint]?.sales)}</p>
-      <p className="text-red-400 dark:text-red-600 font-semibold">Pengeluaran: {formatCurrency(chartData[activeChartPoint]?.expense || 0)}</p>
+  {/* Kotak Tooltip Detail Pendapatan & Pengeluaran Harian */}
+  {activeChartPoint !== null && chartData[activeChartPoint] && (
+    <div className="mb-4 p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 flex items-center justify-between text-xs animate-fadeIn">
+      <div>
+        <span className="text-[10px] uppercase tracking-widest font-black text-blue-500 block mb-0.5">Tanggal Terpilih</span>
+        <span className="font-extrabold text-slate-900 dark:text-white text-sm">{chartData[activeChartPoint].date}</span>
+      </div>
+      <div className="text-right">
+        <span className="text-slate-600 dark:text-slate-300 font-bold block">Penjualan: <strong className="text-blue-600 dark:text-blue-400">{formatCurrency(chartData[activeChartPoint].sales)}</strong></span>
+        <span className="text-slate-600 dark:text-slate-300 font-bold block">Pengeluaran: <strong className="text-red-500">{formatCurrency(chartData[activeChartPoint].expense || 0)}</strong></span>
+      </div>
     </div>
   )}
 
-  {/* Area SVG Grafik */}
-  <div className="h-48 w-full flex items-end pt-6 relative">
+  {/* Area Visualisasi Grafik SVG */}
+  <div className="h-48 w-full flex items-end pt-6 relative px-2">
     <svg className="w-full h-full overflow-visible">
-      {/* Garis tren & titik-titik lingkaran */}
-      {chartData.map((point, index) => {
-        // Logika koordinat X dan Y disesuaikan dengan lebar/tinggi SVG
-        const x = (index / (chartData.length - 1)) * 100;
-        const y = 100 - (point.sales / maxSalesValue) * 80; // Contoh skala proporsional
-        
+      {chartData && chartData.map((point, index) => {
+        const maxVal = Math.max(...chartData.map(d => d.sales), 1000);
+        const xPercent = (index / (chartData.length - 1 || 1)) * 100;
+        const yPercent = 100 - (point.sales / maxVal) * 75;
+        const isActive = activeChartPoint === index;
+
         return (
-          <g key={index} className="cursor-pointer" onClick={() => setActiveChartPoint(index)}>
+          <g key={index} className="cursor-pointer group" onClick={() => setActiveChartPoint(index)}>
+            {/* Garis bantu vertikal saat titik dipilih */}
+            {isActive && (
+              <line x1={`${xPercent}%`} y1="0%" x2={`${xPercent}%`} y2="100%" stroke="currentColor" className="text-blue-400/40 stroke-1 stroke-dasharray-2" />
+            )}
+            {/* Titik Lingkaran pada Grafik */}
             <circle 
-              cx={`${x}%`} 
-              cy={`${y}%`} 
-              r={activeChartPoint === index ? "6" : "4"} 
-              className="fill-blue-600 dark:fill-blue-400 stroke-white dark:stroke-slate-900 stroke-2 transition-all hover:scale-125" 
+              cx={`${xPercent}%`} 
+              cy={`${yPercent}%`} 
+              r={isActive ? "7" : "4.5"} 
+              className={`transition-all duration-200 ${isActive ? 'fill-blue-600 stroke-white stroke-2 shadow-lg scale-125' : 'fill-blue-500 hover:scale-110 stroke-white dark:stroke-slate-900 stroke-2'}`} 
             />
           </g>
         );
       })}
     </svg>
+  </div>
+  
+  <div className="flex justify-between items-center mt-3 text-[10px] text-slate-400 font-bold border-t border-slate-100 dark:border-slate-800/80 pt-3">
+    <span>Awal Periode</span>
+    <span>Sentuh titik grafik untuk info harian</span>
+    <span>Akhir Periode</span>
   </div>
 </div>
                     </div>
