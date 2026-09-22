@@ -126,6 +126,7 @@
       const [selectedMonth, setSelectedMonth] = React.useState(currentDate.getMonth());
       const [selectedYear, setSelectedYear] = React.useState(currentDate.getFullYear());
       const [dashboardBranchFilter, setDashboardBranchFilter] = React.useState('ALL');
+      const [activeChartPoint, setActiveChartPoint] = React.useState(null);
 
       // State Filter untuk Halaman Transaksi
       const [filterType, setFilterType] = React.useState('ALL');
@@ -1210,6 +1211,44 @@
                           })()}
                         </svg>
                       </div>
+                      <div className="relative bg-white dark:bg-[#121824] p-6 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-800 mb-8">
+  <div className="flex justify-between items-center mb-4">
+    <h3 className="text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">Grafik Tren Penjualan Harian</h3>
+    <span className="text-[10px] text-slate-400 font-medium">Ketuk titik grafik untuk melihat detail</span>
+  </div>
+
+  {/* Tooltip Pop-up di atas grafik saat titik disentuh */}
+  {activeChartPoint !== null && (
+    <div className="absolute top-4 right-6 bg-slate-900 text-white dark:bg-white dark:text-slate-900 px-4 py-2 rounded-xl text-xs shadow-lg transition-all z-10">
+      <p className="font-bold">Tanggal: {chartData[activeChartPoint]?.date}</p>
+      <p className="text-blue-400 dark:text-blue-600 font-extrabold">Penjualan: {formatCurrency(chartData[activeChartPoint]?.sales)}</p>
+      <p className="text-red-400 dark:text-red-600 font-semibold">Pengeluaran: {formatCurrency(chartData[activeChartPoint]?.expense || 0)}</p>
+    </div>
+  )}
+
+  {/* Area SVG Grafik */}
+  <div className="h-48 w-full flex items-end pt-6 relative">
+    <svg className="w-full h-full overflow-visible">
+      {/* Garis tren & titik-titik lingkaran */}
+      {chartData.map((point, index) => {
+        // Logika koordinat X dan Y disesuaikan dengan lebar/tinggi SVG
+        const x = (index / (chartData.length - 1)) * 100;
+        const y = 100 - (point.sales / maxSalesValue) * 80; // Contoh skala proporsional
+        
+        return (
+          <g key={index} className="cursor-pointer" onClick={() => setActiveChartPoint(index)}>
+            <circle 
+              cx={`${x}%`} 
+              cy={`${y}%`} 
+              r={activeChartPoint === index ? "6" : "4"} 
+              className="fill-blue-600 dark:fill-blue-400 stroke-white dark:stroke-slate-900 stroke-2 transition-all hover:scale-125" 
+            />
+          </g>
+        );
+      })}
+    </svg>
+  </div>
+</div>
                     </div>
                     
                     <div className="bg-white dark:bg-[#121824] p-6 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card">
