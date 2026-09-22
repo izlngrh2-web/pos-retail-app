@@ -1794,7 +1794,18 @@
                     </div>
                   )}
 
-                  <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Produk</label><select required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newTrx.product_id} onChange={(e)=>setNewTrx({...newTrx, product_id: e.target.value})}><option value="">Pilih Produk...</option>{filteredProducts.map(p => <option key={p.id} value={p.id}>{p.name} (Stok: {getAvailableStock(p, products)})</option>)}</select></div>
+                  <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Produk</label>
+                  <select required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newTrx.product_id} onChange={(e)=>setNewTrx({...newTrx, product_id: e.target.value})}>
+                  <option value="">Pilih Produk...</option>
+                  {products.filter(p => {
+                    const targetBranch = isOwner ? (newTrx.branch_id || '') : (currentUser?.branch_id || '');
+                    if (!targetBranch) return true;
+                    return p.branch_id === targetBranch || p.branch_id === 'ALL' || !p.branch_id;
+                  }).map(p => (
+                  <option key={p.id} value={p.id}>{p.name} (Stok: {getAvailableStock(p, products)})</option>
+                  ))}
+                      </select>
+                  </div>
                   <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Jumlah Qty</label><input type="number" min="1" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newTrx.qty} onChange={(e)=>setNewTrx({...newTrx, qty: e.target.value})} /></div>
                   {newTrx.type === 'SALE' && (
                     <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Biaya Admin (Rp)</label><input type="number" min="0" placeholder="0" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newTrx.admin_fee} onChange={(e)=>setNewTrx({...newTrx, admin_fee: e.target.value})} /></div>
