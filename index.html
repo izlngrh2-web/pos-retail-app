@@ -163,7 +163,7 @@
       const [newStoreModal, setNewStoreModal] = React.useState({ isOpen: false, url: '' });
 
       const [showAddProduct, setShowAddProduct] = React.useState(false);
-      const [newProduct, setNewProduct] = React.useState({ name: '', purchase_price: '', selling_price: '', stock: '', master_id: '', yield_per_master: 1, branch_id: 'ALL' });
+      const [newProduct, setNewProduct] = React.useState({ name: '', purchase_price: '', selling_price: '', stock: '', master_id: '', yield_per_master: 1, branch_id: 'ALL', branch_ids: ['ALL'] });
       const [showAddTransaction, setShowAddTransaction] = React.useState(false);
       const [newTrx, setNewTrx] = React.useState({ type: 'SALE', product_id: '', qty: 1, admin_fee: 0, branch_id: '' });
       const [showAddExpense, setShowAddExpense] = React.useState(false);
@@ -180,6 +180,14 @@
           return 0;
         }
         return Math.round(product.stock * 100) / 100;
+      };
+
+      // Helper untuk parsing multi-cabang (menangani string koma dari database)
+      const getParsedBranches = (prod) => {
+        if (!prod) return ['ALL'];
+        if (Array.isArray(prod.branch_ids) && prod.branch_ids.length > 0) return prod.branch_ids;
+        if (typeof prod.branch_id === 'string' && prod.branch_id.trim() !== '') return prod.branch_id.split(',');
+        return ['ALL'];
       };
 
       React.useEffect(() => {
@@ -419,7 +427,10 @@
       
       const filteredProducts = isOwner 
         ? products 
-        : products.filter(p => p.branch_id === dataViewBranchId || p.branch_id === 'ALL' || p.branch_id === 'b1' || !p.branch_id);
+        : products.filter(p => {
+            const pList = getParsedBranches(p);
+            return pList.includes('ALL') || pList.includes(dataViewBranchId) || !p.branch_id;
+          });
         
       const viewTransactions = (isOwner ? transactions : transactions.filter(t => t.branch_id === dataViewBranchId)).filter(t => t.status === 'COMPLETED');
       const viewExpenses = isOwner ? expenses : expenses.filter(e => e.branch_id === dataViewBranchId);
@@ -548,29 +559,35 @@
         const daysMap = {}; let maxDays = 31;
         if (dashboardFilterMode === 'monthly') {
           maxDays = new Date(selectedYear, Number(selectedMonth) + 1, 0).getDate();
-          for (let d = 1; d <= maxDays; d++) daysMap[d] = { label: d, revenue: 0 };
+          for (let d = 1; d <= maxDays; d++) daysMap[d] = { label: d, sales: 0, expense: 0, date: `${d}/${Number(selectedMonth)+1}/${selectedYear}` };
         } else {
           const ms = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
-          for (let m = 0; m < 12; m++) daysMap[m + 1] = { label: ms[m], revenue: 0 };
+          for (let m = 0; m < 12; m++) daysMap[m + 1] = { label: ms[m], sales: 0, expense: 0, date: `${ms[m]} ${selectedYear}` };
         }
+        
         filteredTransactionsForDash.filter(t => t.type === 'SALE').forEach(t => {
           const d = new Date(t.created_at);
           const key = dashboardFilterMode === 'monthly' ? d.getDate() : d.getMonth() + 1;
-          if (daysMap[key]) daysMap[key].revenue += t.total_amount;
+          if (daysMap[key]) daysMap[key].sales += t.total_amount;
         });
-        return Object.values(daysMap);
-      }, [filteredTransactionsForDash, dashboardFilterMode, selectedMonth, selectedYear]);
 
-      const maxChartVal = React.useMemo(() => {
-        let m = 10000; dailyChartData.forEach(item => { if (item.revenue > m) m = item.revenue; });
-        return m * 1.15; 
-      }, [dailyChartData]);
+        filteredExpensesForDash.forEach(e => {
+          const d = new Date(e.date);
+          const key = dashboardFilterMode === 'monthly' ? d.getDate() : d.getMonth() + 1;
+          if (daysMap[key]) daysMap[key].expense += Number(e.amount);
+        });
+
+        return Object.values(daysMap);
+      }, [filteredTransactionsForDash, filteredExpensesForDash, dashboardFilterMode, selectedMonth, selectedYear]);
 
       const submitProduct = async (e) => {
         e.preventDefault();
+        const branchVal = Array.isArray(newProduct.branch_ids) ? newProduct.branch_ids.join(',') : 'ALL';
+        
         const newItem = { 
           id: 'PRD-' + Date.now().toString().slice(-6), 
-          branch_id: isOwner ? (newProduct.branch_id || 'ALL') : (currentUser.branch_id || 'b1'), 
+          branch_id: isOwner ? branchVal : (currentUser.branch_id || 'b1'), 
+          branch_ids: isOwner ? newProduct.branch_ids : [currentUser.branch_id || 'b1'],
           name: newProduct.name, 
           purchase_price: Number(newProduct.purchase_price), 
           selling_price: Number(newProduct.selling_price), 
@@ -579,7 +596,7 @@
           yield_per_master: Number(newProduct.yield_per_master) || 1
         };
         setProducts([newItem, ...products]); setShowAddProduct(false);
-        setNewProduct({ name: '', purchase_price: '', selling_price: '', stock: '', master_id: '', yield_per_master: 1, branch_id: 'ALL' });
+        setNewProduct({ name: '', purchase_price: '', selling_price: '', stock: '', master_id: '', yield_per_master: 1, branch_id: 'ALL', branch_ids: ['ALL'] });
         showToast('Menyimpan produk...');
         try { 
           await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(getPayloadWithAuth({ action: 'add_product', product: newItem })) }); 
@@ -590,8 +607,11 @@
       const submitEditProduct = async (e) => {
         e.preventDefault();
         if (!editingProduct) return;
+        const branchVal = Array.isArray(editingProduct.branch_ids) ? editingProduct.branch_ids.join(',') : (editingProduct.branch_id || 'ALL');
+        
         const updatedItem = { 
           ...editingProduct, 
+          branch_id: branchVal,
           purchase_price: Number(editingProduct.purchase_price), 
           selling_price: Number(editingProduct.selling_price), 
           stock: editingProduct.master_id ? 0 : Number(editingProduct.stock),
@@ -1181,69 +1201,68 @@
 
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
                     {/* GRAFIK TREN PENJUALAN INTERAKTIF */}
-<div className="relative bg-white dark:bg-[#121824] p-6 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-800 mb-8">
-  <div className="flex justify-between items-center mb-4">
-    <div>
-      <h3 className="text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">Grafik Tren Penjualan Harian</h3>
-      <p className="text-[10px] text-slate-400 font-medium mt-0.5">Ketuk titik pada grafik untuk melihat rincian tanggal</p>
-    </div>
-    {activeChartPoint !== null && (
-      <button 
-        onClick={() => setActiveChartPoint(null)} 
-        className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-2.5 py-1 rounded-lg font-bold hover:bg-slate-200 transition cursor-pointer">
-        Tutup Detail
-      </button>
-    )}
-  </div>
+                    <div className="relative bg-white dark:bg-[#121824] p-6 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-800 mb-8 lg:col-span-2">
+                      <div className="flex justify-between items-center mb-4">
+                        <div>
+                          <h3 className="text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">Grafik Tren Penjualan Harian</h3>
+                          <p className="text-[10px] text-slate-400 font-medium mt-0.5">Ketuk titik pada grafik untuk melihat rincian tanggal</p>
+                        </div>
+                        {activeChartPoint !== null && (
+                          <button 
+                            onClick={() => setActiveChartPoint(null)} 
+                            className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-2.5 py-1 rounded-lg font-bold hover:bg-slate-200 transition cursor-pointer">
+                            Tutup Detail
+                          </button>
+                        )}
+                      </div>
 
-  {/* Kotak Tooltip Detail Pendapatan & Pengeluaran Harian */}
-  {activeChartPoint !== null && chartData[activeChartPoint] && (
-    <div className="mb-4 p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 flex items-center justify-between text-xs animate-fadeIn">
-      <div>
-        <span className="text-[10px] uppercase tracking-widest font-black text-blue-500 block mb-0.5">Tanggal Terpilih</span>
-        <span className="font-extrabold text-slate-900 dark:text-white text-sm">{chartData[activeChartPoint].date}</span>
-      </div>
-      <div className="text-right">
-        <span className="text-slate-600 dark:text-slate-300 font-bold block">Penjualan: <strong className="text-blue-600 dark:text-blue-400">{formatCurrency(chartData[activeChartPoint].sales)}</strong></span>
-        <span className="text-slate-600 dark:text-slate-300 font-bold block">Pengeluaran: <strong className="text-red-500">{formatCurrency(chartData[activeChartPoint].expense || 0)}</strong></span>
-      </div>
-    </div>
-  )}
+                      {/* Kotak Tooltip Detail Pendapatan & Pengeluaran Harian */}
+                      {activeChartPoint !== null && dailyChartData[activeChartPoint] && (
+                        <div className="mb-4 p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 flex items-center justify-between text-xs animate-fadeIn">
+                          <div>
+                            <span className="text-[10px] uppercase tracking-widest font-black text-blue-500 block mb-0.5">Tanggal Terpilih</span>
+                            <span className="font-extrabold text-slate-900 dark:text-white text-sm">{dailyChartData[activeChartPoint].date}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-slate-600 dark:text-slate-300 font-bold block">Penjualan: <strong className="text-blue-600 dark:text-blue-400">{formatCurrency(dailyChartData[activeChartPoint].sales)}</strong></span>
+                            <span className="text-slate-600 dark:text-slate-300 font-bold block">Pengeluaran: <strong className="text-red-500">{formatCurrency(dailyChartData[activeChartPoint].expense || 0)}</strong></span>
+                          </div>
+                        </div>
+                      )}
 
-  {/* Area Visualisasi Grafik SVG */}
-  <div className="h-48 w-full flex items-end pt-6 relative px-2">
-    <svg className="w-full h-full overflow-visible">
-      {chartData && chartData.map((point, index) => {
-        const maxVal = Math.max(...chartData.map(d => d.sales), 1000);
-        const xPercent = (index / (chartData.length - 1 || 1)) * 100;
-        const yPercent = 100 - (point.sales / maxVal) * 75;
-        const isActive = activeChartPoint === index;
+                      {/* Area Visualisasi Grafik SVG */}
+                      <div className="h-48 w-full flex items-end pt-6 relative px-2">
+                        <svg className="w-full h-full overflow-visible">
+                          {dailyChartData && dailyChartData.map((point, index) => {
+                            const maxVal = Math.max(...dailyChartData.map(d => d.sales), 1000);
+                            const xPercent = (index / (dailyChartData.length - 1 || 1)) * 100;
+                            const yPercent = 100 - (point.sales / maxVal) * 75;
+                            const isActive = activeChartPoint === index;
 
-        return (
-          <g key={index} className="cursor-pointer group" onClick={() => setActiveChartPoint(index)}>
-            {/* Garis bantu vertikal saat titik dipilih */}
-            {isActive && (
-              <line x1={`${xPercent}%`} y1="0%" x2={`${xPercent}%`} y2="100%" stroke="currentColor" className="text-blue-400/40 stroke-1 stroke-dasharray-2" />
-            )}
-            {/* Titik Lingkaran pada Grafik */}
-            <circle 
-              cx={`${xPercent}%`} 
-              cy={`${yPercent}%`} 
-              r={isActive ? "7" : "4.5"} 
-              className={`transition-all duration-200 ${isActive ? 'fill-blue-600 stroke-white stroke-2 shadow-lg scale-125' : 'fill-blue-500 hover:scale-110 stroke-white dark:stroke-slate-900 stroke-2'}`} 
-            />
-          </g>
-        );
-      })}
-    </svg>
-  </div>
-  
-  <div className="flex justify-between items-center mt-3 text-[10px] text-slate-400 font-bold border-t border-slate-100 dark:border-slate-800/80 pt-3">
-    <span>Awal Periode</span>
-    <span>Sentuh titik grafik untuk info harian</span>
-    <span>Akhir Periode</span>
-  </div>
-</div>
+                            return (
+                              <g key={index} className="cursor-pointer group" onClick={() => setActiveChartPoint(index)}>
+                                {/* Garis bantu vertikal saat titik dipilih */}
+                                {isActive && (
+                                  <line x1={`${xPercent}%`} y1="0%" x2={`${xPercent}%`} y2="100%" stroke="currentColor" className="text-blue-400/40 stroke-1 stroke-dasharray-2" />
+                                )}
+                                {/* Titik Lingkaran pada Grafik */}
+                                <circle 
+                                  cx={`${xPercent}%`} 
+                                  cy={`${yPercent}%`} 
+                                  r={isActive ? "7" : "4.5"} 
+                                  className={`transition-all duration-200 ${isActive ? 'fill-blue-600 stroke-white stroke-2 shadow-lg scale-125' : 'fill-blue-500 hover:scale-110 stroke-white dark:stroke-slate-900 stroke-2'}`} 
+                                />
+                              </g>
+                            );
+                          })}
+                        </svg>
+                      </div>
+                      
+                      <div className="flex justify-between items-center mt-3 text-[10px] text-slate-400 font-bold border-t border-slate-100 dark:border-slate-800/80 pt-3">
+                        <span>Awal Periode</span>
+                        <span>Sentuh titik grafik untuk info harian</span>
+                        <span>Akhir Periode</span>
+                      </div>
                     </div>
                     
                     <div className="bg-white dark:bg-[#121824] p-6 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card">
@@ -1478,6 +1497,8 @@
                       filteredProducts.map(p => {
                         const calculatedStock = getAvailableStock(p, products);
                         const masterProduct = p.master_id ? products.find(m => m.id === p.master_id) : null;
+                        const pBranchList = getParsedBranches(p);
+                        
                         return (
                           <div key={p.id} className="bg-white dark:bg-[#121824] p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-card dark:shadow-dark-card relative group flex flex-col justify-between">
                             <div>
@@ -1494,7 +1515,7 @@
                                 </div>
                               </div>
                               <h3 className="font-bold text-slate-900 dark:text-white mb-1 truncate text-sm">{p.name}</h3>
-                              <p className="text-[10px] text-slate-400 font-mono mb-2">ID: {p.id} {p.branch_id === 'ALL' && <span className="ml-1 bg-purple-100 text-purple-600 dark:bg-purple-900/30 px-1 py-0.5 rounded">Global</span>}</p>
+                              <p className="text-[10px] text-slate-400 font-mono mb-2">ID: {p.id} {pBranchList.includes('ALL') && <span className="ml-1 bg-purple-100 text-purple-600 dark:bg-purple-900/30 px-1 py-0.5 rounded">Global</span>}</p>
                               {masterProduct && (
                                 <p className="text-[10px] bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 p-1.5 rounded-lg mb-3 font-medium">Varian dari: <b>{masterProduct.name}</b> (Yield: {p.yield_per_master}x)</p>
                               )}
@@ -1712,59 +1733,6 @@
             </div>
           )}
 
-          {selectedStatPopup && (
-            <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999]">
-              <div className="bg-white dark:bg-[#121824] rounded-3xl w-full max-w-md shadow-2xl animate-modal border border-slate-100 dark:border-slate-800 p-6 space-y-5">
-                <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
-                  <div>
-                    <h3 className="font-extrabold text-slate-900 dark:text-white text-sm uppercase tracking-wider">
-                      {selectedStatPopup === 'sales' && 'Analisis Perbandingan: Total Pendapatan'}
-                      {selectedStatPopup === 'gross' && 'Analisis Perbandingan: Pendapatan Kotor'}
-                      {selectedStatPopup === 'profit' && 'Analisis Perbandingan: Laba Bersih'}
-                    </h3>
-                    <p className="text-[10px] text-slate-400 font-medium mt-0.5">Dibandingkan dengan periode bulan sebelumnya</p>
-                  </div>
-                  <button onClick={() => setSelectedStatPopup(null)} className="w-7 h-7 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-full cursor-pointer"><i className="ph-bold ph-x text-xs"></i></button>
-                </div>
-
-                <div className="space-y-4 text-xs">
-                  <div className="bg-slate-50 dark:bg-[#182030] p-4 rounded-2xl space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500 font-medium">Periode Saat Ini:</span>
-                      <span className="font-black text-slate-900 dark:text-white text-sm">
-                        {formatCurrency(
-                          selectedStatPopup === 'sales' ? dashStatsExt.total_sales :
-                          selectedStatPopup === 'gross' ? dashStatsExt.adjusted_gross : dashStatsExt.net_profit
-                        )}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center border-t border-slate-200 dark:border-slate-700/60 pt-3">
-                      <span className="text-slate-500 font-medium">Periode Bulan Lalu:</span>
-                      <span className="font-bold text-slate-700 dark:text-slate-300">
-                        {formatCurrency(
-                          selectedStatPopup === 'sales' ? prevPeriodData.total_sales :
-                          selectedStatPopup === 'gross' ? prevPeriodData.gross_revenue : prevPeriodData.net_profit
-                        )}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-between font-bold">
-                    <span>Persentase Perubahan:</span>
-                    <span>
-                      {renderDiffBadge(
-                        selectedStatPopup === 'sales' ? dashStatsExt.diffs.total_sales :
-                        selectedStatPopup === 'gross' ? dashStatsExt.diffs.gross_revenue : dashStatsExt.diffs.net_profit
-                      )}
-                    </span>
-                  </div>
-                </div>
-
-                <button onClick={() => setSelectedStatPopup(null)} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md transition cursor-pointer">Tutup</button>
-              </div>
-            </div>
-          )}
-
           {editingTrx && (
             <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999]">
               <div className="bg-white dark:bg-[#121824] p-6 rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800">
@@ -1782,7 +1750,19 @@
                     </div>
                   )}
 
-                  <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Produk</label><select required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingTrx.product_id} onChange={(e)=>setEditingTrx({...editingTrx, product_id: e.target.value})}><option value="">Pilih Produk...</option>{filteredProducts.map(p => <option key={p.id} value={p.id}>{p.name} (Stok: {getAvailableStock(p, products)})</option>)}</select></div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Produk</label>
+                    <select required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingTrx.product_id} onChange={(e)=>setEditingTrx({...editingTrx, product_id: e.target.value})}>
+                      <option value="">Pilih Produk...</option>
+                      {products.filter(p => {
+                        const targetBranch = isOwner ? (editingTrx.branch_id || '') : (currentUser?.branch_id || '');
+                        if (!targetBranch) return true;
+                        const pBranchList = getParsedBranches(p);
+                        return pBranchList.includes('ALL') || pBranchList.includes(targetBranch);
+                      }).map(p => <option key={p.id} value={p.id}>{p.name} (Stok: {getAvailableStock(p, products)})</option>)}
+                    </select>
+                  </div>
+
                   <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Jumlah Qty</label><input type="number" min="1" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingTrx.qty} onChange={(e)=>setEditingTrx({...editingTrx, qty: e.target.value})} /></div>
                   {editingTrx.type === 'SALE' && (
                     <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Biaya Admin (Rp)</label><input type="number" min="0" placeholder="0" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={editingTrx.admin_fee} onChange={(e)=>setEditingTrx({...editingTrx, admin_fee: e.target.value})} /></div>
@@ -1895,29 +1875,18 @@
                   )}
 
                   <div>
-  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Produk</label>
-  <select required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newTrx.product_id} onChange={(e)=>setNewTrx({...newTrx, product_id: e.target.value})}>
-    <option value="">Pilih Produk...</option>
-    {products.filter(p => {
-      const targetBranch = isOwner ? (newTrx.branch_id || '') : (currentUser?.branch_id || '');
-      if (!targetBranch) return true;
-      
-      // Ambil daftar cabang produk (bisa berupa array atau string tunggal dari database lama)
-      let pBranches = p.branch_ids || (p.branch_id ? [p.branch_id] : ['ALL']);
-      if (typeof pBranches === 'string') {
-        pBranches = p.branch_ids.includes(',') ? p.branch_ids.split(',') : [p.branch_ids];
-      }
-      
-      const normalizedBranches = pBranches.map(b => b.toString().trim().toUpperCase());
-      const tBranch = targetBranch.toString().trim().toUpperCase();
-      
-      // Tampilkan jika mencakup ALL atau ID cabang yang dipilih ada di dalam daftar
-      return normalizedBranches.includes('ALL') || normalizedBranches.includes(tBranch);
-    }).map(p => (
-      <option key={p.id} value={p.id}>{p.name} (Stok: {getAvailableStock(p, products)})</option>
-    ))}
-  </select>
-</div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Produk</label>
+                    <select required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newTrx.product_id} onChange={(e)=>setNewTrx({...newTrx, product_id: e.target.value})}>
+                      <option value="">Pilih Produk...</option>
+                      {products.filter(p => {
+                        const targetBranch = isOwner ? (newTrx.branch_id || '') : (currentUser?.branch_id || '');
+                        if (!targetBranch) return true;
+                        const pBranchList = getParsedBranches(p);
+                        return pBranchList.includes('ALL') || pBranchList.includes(targetBranch);
+                      }).map(p => <option key={p.id} value={p.id}>{p.name} (Stok: {getAvailableStock(p, products)})</option>)}
+                    </select>
+                  </div>
+                  
                   <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Jumlah Qty</label><input type="number" min="1" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newTrx.qty} onChange={(e)=>setNewTrx({...newTrx, qty: e.target.value})} /></div>
                   {newTrx.type === 'SALE' && (
                     <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Biaya Admin (Rp)</label><input type="number" min="0" placeholder="0" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-[#182030] dark:text-white text-xs font-bold" value={newTrx.admin_fee} onChange={(e)=>setNewTrx({...newTrx, admin_fee: e.target.value})} /></div>
@@ -2064,7 +2033,7 @@
                             type="checkbox" 
                             className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
                             checked={(() => {
-                              const bList = editingProduct.branch_ids || (editingProduct.branch_id ? [editingProduct.branch_id] : ['ALL']);
+                              const bList = getParsedBranches(editingProduct);
                               return bList.includes('ALL');
                             })()}
                             onChange={(e) => {
@@ -2079,7 +2048,7 @@
                         </label>
                         <hr className="border-slate-200 dark:border-slate-700 my-1" />
                         {branches.map(b => {
-                          const currentBranches = editingProduct.branch_ids || (editingProduct.branch_id ? [editingProduct.branch_id] : ['ALL']);
+                          const currentBranches = getParsedBranches(editingProduct);
                           const isChecked = currentBranches.includes('ALL') || currentBranches.includes(b.id);
                           return (
                             <label key={b.id} className="flex items-center space-x-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
