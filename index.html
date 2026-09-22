@@ -119,6 +119,7 @@
 
       const [currentView, setCurrentView] = React.useState('dashboard');
       const [toast, setToast] = React.useState(null);
+      const [selectedStatPopup, setSelectedStatPopup] = React.useState(null); // 'sales', 'gross', atau 'profit'
 
       const currentDate = new Date();
       const [dashboardFilterMode, setDashboardFilterMode] = React.useState('monthly');
@@ -1112,10 +1113,11 @@
                     </div>
                   </div>
 
-                  {/* KARTU STATISTIK DASHBOARD DENGAN GRADASI MODERN */}
+                  {/* KARTU STATISTIK DASHBOARD DENGAN KLIK POP-UP */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     
-                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-800 p-6 text-white shadow-xl">
+                    {/* Kartu 1: Total Pendapatan */}
+                    <div onClick={() => setSelectedStatPopup('sales')} className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-800 p-6 text-white shadow-xl cursor-pointer hover:scale-[1.01] transition-transform">
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm font-medium text-blue-200">Total Pendapatan</p>
@@ -1125,13 +1127,17 @@
                           <i className="ph-bold ph-wallet text-2xl text-blue-100"></i>
                         </div>
                       </div>
-                      <div className="mt-4 flex items-center text-xs text-blue-200">
-                        {renderDiffBadge(dashStatsExt.diffs.total_sales)}
-                        <span className="ml-1">dari periode lalu</span>
+                      <div className="mt-4 flex items-center justify-between text-xs text-blue-200">
+                        <div>
+                          {renderDiffBadge(dashStatsExt.diffs.total_sales)}
+                          <span className="ml-1">dari periode lalu</span>
+                        </div>
+                        <span className="text-[10px] underline font-bold">Ketuk untuk detail</span>
                       </div>
                     </div>
 
-                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-600 to-pink-700 p-6 text-white shadow-xl">
+                    {/* Kartu 2: Pendapatan Kotor */}
+                    <div onClick={() => setSelectedStatPopup('gross')} className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-600 to-pink-700 p-6 text-white shadow-xl cursor-pointer hover:scale-[1.01] transition-transform">
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm font-medium text-purple-200">Pendapatan Kotor</p>
@@ -1141,13 +1147,17 @@
                           <i className="ph-bold ph-chart-line-up text-2xl text-purple-100"></i>
                         </div>
                       </div>
-                      <div className="mt-4 flex items-center text-xs text-purple-200">
-                        {renderDiffBadge(dashStatsExt.diffs.gross_revenue)}
-                        <span className="ml-1">setelah potongan</span>
+                      <div className="mt-4 flex items-center justify-between text-xs text-purple-200">
+                        <div>
+                          {renderDiffBadge(dashStatsExt.diffs.gross_revenue)}
+                          <span className="ml-1">setelah potongan</span>
+                        </div>
+                        <span className="text-[10px] underline font-bold">Ketuk untuk detail</span>
                       </div>
                     </div>
 
-                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-800 p-6 text-white shadow-xl">
+                    {/* Kartu 3: Laba Bersih */}
+                    <div onClick={() => setSelectedStatPopup('profit')} className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-800 p-6 text-white shadow-xl cursor-pointer hover:scale-[1.01] transition-transform">
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm font-medium text-emerald-200">Laba Bersih</p>
@@ -1157,9 +1167,12 @@
                           <i className="ph-bold ph-coins text-2xl text-emerald-100"></i>
                         </div>
                       </div>
-                      <div className="mt-4 flex items-center text-xs text-emerald-200">
-                        {renderDiffBadge(dashStatsExt.diffs.net_profit)}
-                        <span className="ml-1">keuntungan bersih</span>
+                      <div className="mt-4 flex items-center justify-between text-xs text-emerald-200">
+                        <div>
+                          {renderDiffBadge(dashStatsExt.diffs.net_profit)}
+                          <span className="ml-1">keuntungan bersih</span>
+                        </div>
+                        <span className="text-[10px] underline font-bold">Ketuk untuk detail</span>
                       </div>
                     </div>
 
@@ -1661,6 +1674,59 @@
                   <button onClick={() => { const t = selectedDetailTrx; setSelectedDetailTrx(null); setSelectedReceiptTrx(t); }} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-xs flex items-center justify-center cursor-pointer"><i className="ph-bold ph-receipt mr-1.5"></i> Cetak Struk</button>
                   <button onClick={() => { const t = selectedDetailTrx; setSelectedDetailTrx(null); triggerCancelTrx(t); }} className="w-full py-3 bg-rose-500/10 text-rose-500 rounded-xl font-bold text-xs flex items-center justify-center cursor-pointer"><i className="ph-bold ph-x mr-1.5"></i> Batalkan Transaksi</button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {selectedStatPopup && (
+            <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999]">
+              <div className="bg-white dark:bg-[#121824] rounded-3xl w-full max-w-md shadow-2xl animate-modal border border-slate-100 dark:border-slate-800 p-6 space-y-5">
+                <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <div>
+                    <h3 className="font-extrabold text-slate-900 dark:text-white text-sm uppercase tracking-wider">
+                      {selectedStatPopup === 'sales' && 'Analisis Perbandingan: Total Pendapatan'}
+                      {selectedStatPopup === 'gross' && 'Analisis Perbandingan: Pendapatan Kotor'}
+                      {selectedStatPopup === 'profit' && 'Analisis Perbandingan: Laba Bersih'}
+                    </h3>
+                    <p className="text-[10px] text-slate-400 font-medium mt-0.5">Dibandingkan dengan periode bulan sebelumnya</p>
+                  </div>
+                  <button onClick={() => setSelectedStatPopup(null)} className="w-7 h-7 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-full cursor-pointer"><i className="ph-bold ph-x text-xs"></i></button>
+                </div>
+
+                <div className="space-y-4 text-xs">
+                  <div className="bg-slate-50 dark:bg-[#182030] p-4 rounded-2xl space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 font-medium">Periode Saat Ini:</span>
+                      <span className="font-black text-slate-900 dark:text-white text-sm">
+                        {formatCurrency(
+                          selectedStatPopup === 'sales' ? dashStatsExt.total_sales :
+                          selectedStatPopup === 'gross' ? dashStatsExt.adjusted_gross : dashStatsExt.net_profit
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center border-t border-slate-200 dark:border-slate-700/60 pt-3">
+                      <span className="text-slate-500 font-medium">Periode Bulan Lalu:</span>
+                      <span className="font-bold text-slate-700 dark:text-slate-300">
+                        {formatCurrency(
+                          selectedStatPopup === 'sales' ? prevPeriodData.total_sales :
+                          selectedStatPopup === 'gross' ? prevPeriodData.gross_revenue : prevPeriodData.net_profit
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-between font-bold">
+                    <span>Persentase Perubahan:</span>
+                    <span>
+                      {renderDiffBadge(
+                        selectedStatPopup === 'sales' ? dashStatsExt.diffs.total_sales :
+                        selectedStatPopup === 'gross' ? dashStatsExt.diffs.gross_revenue : dashStatsExt.diffs.net_profit
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                <button onClick={() => setSelectedStatPopup(null)} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md transition cursor-pointer">Tutup</button>
               </div>
             </div>
           )}
